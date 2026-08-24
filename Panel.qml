@@ -154,6 +154,16 @@ Panel {
             spacing: Style.space(2)
 
             PanelActionButton {
+              visible: root.signedIn
+              iconText: "󰝩"
+              tooltipText: !!(root.service && root.service.popupOnAlert) ? "Live popup on" : "Live popup off"
+              foreground: (root.service && root.service.popupOnAlert) ? Color.accent : Qt.darker(root.contentForeground, 1.4)
+              fontFamily: root.contentFontFamily
+              onClicked: if (root.service)
+                root.service.persistSettings({ popupOnAlert: !root.service.popupOnAlert })
+            }
+
+            PanelActionButton {
               iconText: "󰌖"
               tooltipText: "Open Frigate"
               foreground: root.contentForeground
@@ -178,19 +188,6 @@ Panel {
           color: Qt.darker(root.contentForeground, 1.4)
           font.family: root.contentFontFamily
           font.pixelSize: Style.font.bodySmall
-        }
-
-        Toggle {
-          visible: root.signedIn
-          width: parent.width
-          height: visible ? implicitHeight : 0
-          label: "Live popup"
-          description: "Open the camera when an alert fires"
-          checked: !!(root.service && root.service.popupOnAlert)
-          foreground: root.contentForeground
-          fontFamily: root.contentFontFamily
-          onClicked: if (root.service)
-            root.service.persistSettings({ popupOnAlert: !root.service.popupOnAlert })
         }
 
         Grid {
