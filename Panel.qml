@@ -19,6 +19,7 @@ Panel {
   readonly property string statusText: service ? service.statusText : "Connecting…"
   readonly property bool needsLogin: service ? service.needsLogin === true : false
   property bool signedIn: false
+  property bool showSettings: false
   readonly property int stillRevision: service ? Number(service.stillRevision || 0) : 0
   readonly property int tileWidth: Style.space(168)
   readonly property int tileHeight: Style.space(96)
@@ -62,7 +63,7 @@ Panel {
       url: urlField.text,
       username: userField.text
     })
-    root.service.persistPassword(passField.text)
+    root.service.persistPassword(passField.text, root.service.rtspPassword)
     root.service.token = ""
     root.service.loginAttempted = false
     root.service.connected = false
@@ -72,11 +73,23 @@ Panel {
     Qt.callLater(function() { if (root.service) root.service.tick() })
   }
 
+  function saveSettings() {
+    if (!root.service) return
+    root.service.persistSettings({
+      rtspUsername: rtspUserField.text,
+      hqStream: !!(root.service && root.service.hqStream)
+    })
+    root.service.persistPassword(root.service.password, rtspPassField.text)
+  }
+
   function logout() {
     if (root.service) root.service.logout()
     root.signedIn = false
+    root.showSettings = false
     passField.text = ""
     userField.text = ""
+    rtspUserField.text = ""
+    rtspPassField.text = ""
   }
 
   function syncAuth() {
@@ -85,6 +98,8 @@ Panel {
     if (!urlField.activeFocus) urlField.text = root.service.url
     if (!userField.activeFocus) userField.text = root.service.username
     if (!passField.activeFocus) passField.text = root.service.password
+    if (!rtspUserField.activeFocus) rtspUserField.text = root.service.rtspUsername
+    if (!rtspPassField.activeFocus) rtspPassField.text = root.service.rtspPassword
   }
 
   onServiceChanged: root.syncAuth()
@@ -109,7 +124,7 @@ Panel {
     PanelKeyCatcher {
       id: keyCatcher
       anchors.fill: parent
-      blocked: urlField.activeFocus || userField.activeFocus || passField.activeFocus
+      blocked: urlField.activeFocus || userField.activeFocus || passField.activeFocus || rtspUserField.activeFocus || rtspPassField.activeFocus
       onCloseRequested: root.close()
       onTabRequested: function(direction) { root.switchPanel(direction) }
 
@@ -162,12 +177,11 @@ Panel {
 
             PanelActionButton {
               visible: root.signedIn
-              iconText: "󰝩"
-              tooltipText: !!(root.service && root.service.popupOnAlert) ? "Live popup on" : "Live popup off"
-              foreground: (root.service && root.service.popupOnAlert) ? Color.accent : Qt.darker(root.contentForeground, 1.4)
+              iconText: "󰒓"
+              tooltipText: root.showSettings ? "Back to cameras" : "Settings"
+              foreground: root.showSettings ? Color.accent : root.contentForeground
               fontFamily: root.contentFontFamily
-              onClicked: if (root.service)
-                root.service.persistSettings({ popupOnAlert: !root.service.popupOnAlert })
+              onClicked: root.showSettings = !root.showSettings
             }
 
             PanelActionButton {
@@ -202,7 +216,7 @@ Panel {
           columns: 2
           columnSpacing: Style.space(8)
           rowSpacing: Style.space(8)
-          visible: root.cameras.length > 0
+          visible: root.cameras.length > 0 && !root.showSettings
 
           Repeater {
             model: root.cameras
@@ -269,7 +283,7 @@ Panel {
         }
 
         Text {
-          visible: root.cameras.length === 0
+          visible: root.cameras.length === 0 && !root.showSettings
           width: parent.width
           text: root.needsLogin ? "Sign in to load cameras." : "No cameras yet."
           color: Qt.darker(root.contentForeground, 1.5)
@@ -279,14 +293,14 @@ Panel {
         }
 
         PanelSeparator {
-          visible: root.signedIn && root.reviews.length > 0
+          visible: root.signedIn && root.reviews.length > 0 && !root.showSettings
           foreground: root.contentForeground
         }
 
         Item {
           width: parent.width
           height: Math.max(reviewHeader.implicitHeight, markAllBtn.implicitHeight)
-          visible: root.signedIn && root.reviews.length > 0
+          visible: root.signedIn && root.reviews.length > 0 && !root.showSettings
 
           PanelSectionHeader {
             id: reviewHeader
@@ -316,7 +330,7 @@ Panel {
         Column {
           width: parent.width
           spacing: Style.space(6)
-          visible: root.signedIn && root.reviews.length > 0
+          visible: root.signedIn && root.reviews.length > 0 && !root.showSettings
 
           Repeater {
             model: root.reviews
@@ -390,6 +404,98 @@ Panel {
                   onClicked: if (root.service) root.service.dismissReview(reviewRow.modelData.id)
                 }
               }
+            }
+          }
+        }
+
+        Column {
+          width: parent.width
+          spacing: Style.space(8)
+          visible: root.signedIn && root.showSettings
+          height: visible ? implicitHeight : 0
+
+          PanelSectionHeader {
+            text: "NOTIFICATIONS"
+            foreground: root.contentForeground
+            fontFamily: root.contentFontFamily
+          }
+
+          Toggle {
+            width: parent.width
+            label: "Live popup on alerts"
+            description: "Open the camera when an alert fires"
+            checked: !!(root.service && root.service.popupOnAlert)
+            foreground: root.contentForeground
+            fontFamily: root.contentFontFamily
+            onClicked: if (root.service)
+              root.service.persistSettings({ popupOnAlert: !root.service.popupOnAlert })
+          }
+
+          PanelSeparator {
+            foreground: root.contentForeground
+          }
+
+          PanelSectionHeader {
+            text: "DISPLAY"
+            foreground: root.contentForeground
+            fontFamily: root.contentFontFamily
+          }
+
+          Toggle {
+            width: parent.width
+            label: "4:3 aspect ratio"
+            description: "Use 4:3 instead of 16:9 for camera windows"
+            checked: !!(root.service && root.service.aspectRatio === "4:3")
+            foreground: root.contentForeground
+            fontFamily: root.contentFontFamily
+            onClicked: if (root.service)
+              root.service.persistSettings({ aspectRatio: root.service.aspectRatio === "4:3" ? "16:9" : "4:3" })
+          }
+
+          PanelSeparator {
+            foreground: root.contentForeground
+          }
+
+          PanelSectionHeader {
+            text: "STREAM QUALITY"
+            foreground: root.contentForeground
+            fontFamily: root.contentFontFamily
+          }
+
+          Toggle {
+            width: parent.width
+            label: "Higher quality stream"
+            description: "Use RTSP main stream (H264) instead of MJPEG. Requires camera credentials."
+            checked: !!(root.service && root.service.hqStream)
+            foreground: root.contentForeground
+            fontFamily: root.contentFontFamily
+            onClicked: if (root.service)
+              root.service.persistSettings({ hqStream: !root.service.hqStream })
+          }
+
+          Column {
+            width: parent.width
+            spacing: Style.space(8)
+            visible: !!(root.service && root.service.hqStream)
+            height: visible ? implicitHeight : 0
+
+            TextField {
+              id: rtspUserField
+              width: parent.width
+              placeholderText: "camera username"
+            }
+
+            TextField {
+              id: rtspPassField
+              width: parent.width
+              password: true
+              placeholderText: "camera password"
+            }
+
+            Button {
+              text: "Save"
+              foreground: root.contentForeground
+              onClicked: root.saveSettings()
             }
           }
         }

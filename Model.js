@@ -9,7 +9,7 @@ function normalizeUrl(url) {
 
 function pluginSettings(config, id) {
   var key = String(id || PLUGIN_ID)
-  var empty = { url: DEFAULT_URL, username: "", refreshSeconds: 2, popupOnAlert: false }
+  var empty = { url: DEFAULT_URL, username: "", refreshSeconds: 2, popupOnAlert: false, rtspUsername: "", hqStream: false, aspectRatio: "16:9" }
   if (!config || typeof config !== "object") return empty
 
   function fromEntry(entry) {
@@ -19,7 +19,10 @@ function pluginSettings(config, id) {
       url: normalizeUrl(entry.url),
       username: String(entry.username || ""),
       refreshSeconds: Math.max(1, parseInt(entry.refreshSeconds, 10) || 2),
-      popupOnAlert: entry.popupOnAlert === true
+      popupOnAlert: entry.popupOnAlert === true,
+      rtspUsername: String(entry.rtspUsername || ""),
+      hqStream: entry.hqStream === true,
+      aspectRatio: String(entry.aspectRatio || "16:9") === "4:3" ? "4:3" : "16:9"
     }
   }
 
@@ -44,14 +47,20 @@ function pluginSettings(config, id) {
 function parsePasswordFile(raw) {
   try {
     var data = JSON.parse(String(raw || ""))
-    return data && typeof data.password === "string" ? data.password : ""
+    return {
+      password: data && typeof data.password === "string" ? data.password : "",
+      rtspPassword: data && typeof data.rtspPassword === "string" ? data.rtspPassword : ""
+    }
   } catch (e) {
-    return ""
+    return { password: "", rtspPassword: "" }
   }
 }
 
-function serializePasswordFile(password) {
-  return JSON.stringify({ password: String(password || "") }) + "\n"
+function serializePasswordFile(password, rtspPassword) {
+  return JSON.stringify({
+    password: String(password || ""),
+    rtspPassword: String(rtspPassword || "")
+  }) + "\n"
 }
 
 function parseSeenFile(raw) {
@@ -85,7 +94,8 @@ function parseConfig(raw) {
         name: String(name),
         enabled: camera.enabled !== false,
         notifyEnabled: notify.enabled !== false,
-        notifySuspendedUntil: Number(notify.suspended || 0) || 0
+        notifySuspendedUntil: Number(notify.suspended || 0) || 0,
+        rtspUrl: rtspMainUrl(camera)
       })
     }
     cameras.sort(function(a, b) { return a.name < b.name ? -1 : a.name > b.name ? 1 : 0 })
@@ -288,6 +298,25 @@ function liveUrl(base, camera) {
   return normalizeUrl(base) + "/api/" + encodeURIComponent(String(camera || ""))
 }
 
+function stripRtspCreds(path) {
+  return String(path || "").replace(/^rtsp:\/\/[^@]*@/, "rtsp://")
+}
+
+function rtspWithCreds(url, user, pass) {
+  if (!user || !pass) return ""
+  return String(url || "").replace(/^rtsp:\/\//, "rtsp://" + encodeURIComponent(user) + ":" + encodeURIComponent(pass) + "@")
+}
+
+function rtspMainUrl(cam) {
+  if (!cam) return ""
+  var inputs = cam.ffmpeg && cam.ffmpeg.inputs ? cam.ffmpeg.inputs : []
+  for (var i = 0; i < inputs.length; i++) {
+    var roles = inputs[i].roles || []
+    if (roles.indexOf("record") !== -1) return stripRtspCreds(inputs[i].path)
+  }
+  return ""
+}
+
 function clipUrl(base, camera, start, end) {
   var s = Number(start) || 0
   var e = Number(end) || 0
@@ -353,10 +382,10 @@ function snapshotUrl(base, eventId) {
   return normalizeUrl(base) + "/api/events/" + encodeURIComponent(String(eventId || "")) + "/snapshot.jpg"
 }
 
-function liveGeometry(index) {
+function liveGeometry(index, aspect) {
   var i = Math.max(0, parseInt(index, 10) || 0)
   var w = 640
-  var h = 360
+  var h = aspect === "4:3" ? 480 : 360
   var gap = 16
   var margin = 40
   var col = Math.floor(i / 2)
@@ -410,10 +439,13 @@ if (typeof Qt === "undefined") {
     bar: { layout: { right: [{ id: PLUGIN_ID, url: "http://nvr:8971", username: "admin" }] } }
   }).username === "admin", "pluginSettings")
   assert(pluginSettings({}).popupOnAlert === false, "popup default")
+  assert(pluginSettings({}).hqStream === false, "hqStream default")
+  assert(pluginSettings({}).aspectRatio === "16:9", "aspectRatio default")
   assert(pluginSettings({
     bar: { layout: { right: [{ id: PLUGIN_ID, popupOnAlert: true }] } }
   }).popupOnAlert === true, "popup on")
-  assert(parsePasswordFile('{"password":"secret"}') === "secret", "password")
+  assert(parsePasswordFile('{"password":"secret","rtspPassword":"cam"}').password === "secret", "password")
+  assert(parsePasswordFile('{"password":"secret","rtspPassword":"cam"}').rtspPassword === "cam", "rtsp password")
   assert(parseConfig('{"notifications":{"enabled":false},"cameras":{"gate":{}}}').notificationsEnabled === false, "config notify")
   assert(shouldNotify({ id: "a", severity: "alert", camera: "gate" }, { notificationsEnabled: true, cameras: [] }, []) === true, "new alert")
   assert(shouldNotify({ id: "a", severity: "alert", camera: "gate" }, { notificationsEnabled: true, cameras: [] }, ["a"]) === false, "seen alert")
@@ -421,7 +453,14 @@ if (typeof Qt === "undefined") {
   assert(toastBody({ data: { objects: ["person"], zones: ["driveway"] } }) === "person · driveway", "toast")
   assert(parseLoginResponse("HTTP/1.1 200\r\nSet-Cookie: token=abc.def; HttpOnly\r\n\r\n{}") === "abc.def", "login cookie")
   assert(liveUrl("http://nvr:5000/", "front left") === "http://nvr:5000/api/front%20left", "liveUrl")
+  assert(stripRtspCreds("rtsp://admin:pass@192.168.1.1:554/stream") === "rtsp://192.168.1.1:554/stream", "stripRtspCreds")
+  assert(rtspMainUrl({ ffmpeg: { inputs: [
+    { path: "rtsp://admin:pass@1.2.3.4:554/sub", roles: ["detect"] },
+    { path: "rtsp://admin:pass@1.2.3.4:554/main", roles: ["record"] }
+  ] } }) === "rtsp://1.2.3.4:554/main", "rtspMainUrl")
+  assert(rtspWithCreds("rtsp://1.2.3.4:554/main", "admin", "pass") === "rtsp://admin:pass@1.2.3.4:554/main", "rtspWithCreds")
   assert(liveGeometry(0) === "640x360-40-40", "liveGeometry0")
+  assert(liveGeometry(0, "4:3") === "640x480-40-40", "liveGeometry43")
   assert(liveGeometry(1) === "640x360-40-416", "liveGeometry1")
   assert(clipUrl("http://nvr:5000/", "front left", 1.5, 2) === "http://nvr:5000/api/front%20left/start/1.5/end/2/clip.mp4", "clipUrl")
   assert(reviewThumbUrl("http://nvr", { camera: "garage", id: "1.2-ab" }) === "http://nvr/clips/review/thumb-garage-1.2-ab.webp", "reviewThumb")

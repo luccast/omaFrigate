@@ -18,6 +18,7 @@ Item {
   property string statusText: "Connecting…"
   property string token: ""
   property string password: ""
+  property string rtspPassword: ""
   property int unreadCount: 0
   property int stillRevision: 0
   property bool panelOpen: false
@@ -47,6 +48,9 @@ Item {
   readonly property string username: pluginSettings.username
   readonly property int refreshSeconds: pluginSettings.refreshSeconds
   readonly property bool popupOnAlert: pluginSettings.popupOnAlert === true
+  readonly property string rtspUsername: pluginSettings.rtspUsername
+  readonly property bool hqStream: pluginSettings.hqStream === true
+  readonly property string aspectRatio: pluginSettings.aspectRatio
 
   function stillPath(camera) {
     return cacheDir + "/" + String(camera || "").replace(/[^A-Za-z0-9._-]/g, "_") + ".jpg"
@@ -66,16 +70,20 @@ Item {
       url: root.url,
       username: root.username,
       refreshSeconds: root.refreshSeconds,
-      popupOnAlert: root.popupOnAlert
+      popupOnAlert: root.popupOnAlert,
+      rtspUsername: root.rtspUsername,
+      hqStream: root.hqStream,
+      aspectRatio: root.aspectRatio
     }
     for (var key in values) entry[key] = values[key]
     if (root.shell && typeof root.shell.updateEntryInline === "function")
       root.shell.updateEntryInline(Model.PLUGIN_ID, entry)
   }
 
-  function persistPassword(value) {
+  function persistPassword(value, rtspValue) {
     root.password = String(value || "")
-    passwordFile.setText(Model.serializePasswordFile(root.password))
+    root.rtspPassword = String(rtspValue || "")
+    passwordFile.setText(Model.serializePasswordFile(root.password, root.rtspPassword))
     if (!root.loginPending) {
       chmodProc.command = ["chmod", "600", passwordPath]
       chmodProc.running = true
@@ -104,8 +112,8 @@ Item {
     root.statusText = "Signed out"
     root.unreadCount = 0
     stopStills()
-    persistSettings({ username: "" })
-    persistPassword("")
+    persistSettings({ username: "", rtspUsername: "", hqStream: false, aspectRatio: "16:9" })
+    persistPassword("", "")
     loginBodyFile.setText("")
     closeLive()
     ensureCacheProc.command = ["bash", "-c", "rm -f \"$1\"/*.jpg \"$1\"/reviews/*", "--", cacheDir]
@@ -155,7 +163,7 @@ Item {
       name: key,
       mediaUrl: media,
       title: String(title || key),
-      geometry: Model.liveGeometry(liveModel.count),
+      geometry: Model.liveGeometry(liveModel.count, root.aspectRatio),
       loop: loop === true
     })
     syncLiveOpen()
@@ -165,7 +173,17 @@ Item {
   function openLive(camera) {
     var name = String(camera || "")
     if (!name || !root.url) return
-    openPlayer(name, Model.liveUrl(root.url, name), "omaFrigate – " + name)
+    var url = Model.liveUrl(root.url, name)
+    if (root.hqStream && root.rtspUsername && root.rtspPassword) {
+      for (var i = 0; i < root.configState.cameras.length; i++) {
+        if (root.configState.cameras[i].name === name) {
+          var rtsp = root.configState.cameras[i].rtspUrl
+          if (rtsp) url = Model.rtspWithCreds(rtsp, root.rtspUsername, root.rtspPassword)
+          break
+        }
+      }
+    }
+    openPlayer(name, url, "omaFrigate – " + name)
   }
 
   function openReview(review) {
@@ -488,8 +506,15 @@ Item {
     watchChanges: true
     atomicWrites: true
     printErrors: false
-    onLoaded: root.password = Model.parsePasswordFile(text())
-    onLoadFailed: root.password = ""
+    onLoaded: {
+      var parsed = Model.parsePasswordFile(text())
+      root.password = parsed.password
+      root.rtspPassword = parsed.rtspPassword
+    }
+    onLoadFailed: {
+      root.password = ""
+      root.rtspPassword = ""
+    }
     onFileChanged: reload()
   }
 
@@ -542,6 +567,7 @@ Item {
           "--really-quiet"
         ]
         if (loop) cmd.push("--loop-file=inf", "--untimed=no", "--cache=yes")
+        else if (String(mediaUrl).indexOf("rtsp://") === 0) cmd.push("--untimed=no", "--cache=yes")
         cmd.push(mediaUrl)
         return cmd
       }
