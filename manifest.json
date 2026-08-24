@@ -1,0 +1,25 @@
+{
+  "schemaVersion": 1,
+  "id": "io.github.luccast.frigate",
+  "name": "omaFrigate",
+  "version": "1.0.0",
+  "author": "luccast",
+  "license": "MIT",
+  "description": "Local Frigate camera stills in the Omarchy bar, with desktop alerts from Frigate review activity.",
+  "kinds": [
+    "service",
+    "bar-widget"
+  ],
+  "keepLoaded": true,
+  "entryPoints": {
+    "service": "Service.qml",
+    "barWidget": "BarWidget.qml"
+  },
+  "barWidget": {
+    "displayName": "omaFrigate",
+    "description": "Frigate cameras and review alerts",
+    "category": "Info",
+    "allowMultiple": false,
+    "defaultSection": "right"
+  }
+}
