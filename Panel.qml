@@ -116,13 +116,47 @@ Panel {
         width: parent.width
         spacing: Style.space(10)
 
-        Text {
+        Item {
           width: parent.width
-          text: "Frigate"
-          color: root.contentForeground
-          font.family: root.contentFontFamily
-          font.pixelSize: Style.font.subtitle
-          font.bold: true
+          height: Math.max(titleLabel.implicitHeight, headerActions.implicitHeight)
+
+          Text {
+            id: titleLabel
+            anchors.left: parent.left
+            anchors.right: headerActions.left
+            anchors.rightMargin: Style.space(8)
+            anchors.verticalCenter: parent.verticalCenter
+            text: "Frigate"
+            elide: Text.ElideRight
+            color: root.contentForeground
+            font.family: root.contentFontFamily
+            font.pixelSize: Style.font.subtitle
+            font.bold: true
+          }
+
+          Row {
+            id: headerActions
+            anchors.right: parent.right
+            anchors.verticalCenter: parent.verticalCenter
+            spacing: Style.space(2)
+
+            PanelActionButton {
+              iconText: "󰌖"
+              tooltipText: "Open Frigate"
+              foreground: root.contentForeground
+              fontFamily: root.contentFontFamily
+              onClicked: if (root.service) root.service.openInBrowser()
+            }
+
+            PanelActionButton {
+              visible: root.signedIn
+              iconText: "󰍃"
+              tooltipText: "Log out"
+              foreground: root.contentForeground
+              fontFamily: root.contentFontFamily
+              onClicked: root.logout()
+            }
+          }
         }
 
         Text {
@@ -221,13 +255,6 @@ Panel {
             foreground: root.contentForeground
             onClicked: root.saveConnection()
           }
-        }
-
-        Button {
-          visible: root.signedIn
-          text: "Log out"
-          foreground: root.contentForeground
-          onClicked: root.logout()
         }
       }
     }

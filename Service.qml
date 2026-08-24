@@ -95,6 +95,12 @@ Item {
     seenFile.setText(Model.serializeSeenFile(root.seenIds))
   }
 
+  function openInBrowser() {
+    if (!root.url) return
+    openProc.command = ["omarchy", "launch", "browser", root.url]
+    openProc.running = true
+  }
+
   function remember(ids) {
     var next = Model.rememberIds(root.seenIds, ids)
     if (JSON.stringify(next) === JSON.stringify(root.seenIds)) return
@@ -368,6 +374,11 @@ Item {
 
   Process {
     id: toastProc
+    running: false
+  }
+
+  Process {
+    id: openProc
     running: false
   }
 
