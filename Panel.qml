@@ -324,6 +324,14 @@ Panel {
               accent: Color.accent
               opacity: reviewRow.modelData.viewed ? 0.5 : 1.0
 
+              MouseArea {
+                id: reviewMouse
+                anchors.fill: parent
+                hoverEnabled: true
+                cursorShape: Qt.PointingHandCursor
+                onClicked: if (root.service) root.service.openReview(reviewRow.modelData)
+              }
+
               Row {
                 id: reviewContent
                 anchors.left: parent.left
@@ -374,14 +382,6 @@ Panel {
                   fontFamily: root.contentFontFamily
                   onClicked: if (root.service) root.service.dismissReview(reviewRow.modelData.id)
                 }
-              }
-
-              MouseArea {
-                id: reviewMouse
-                anchors.fill: parent
-                hoverEnabled: true
-                cursorShape: Qt.PointingHandCursor
-                onClicked: if (root.service) root.service.openReview(reviewRow.modelData)
               }
             }
           }
