@@ -64,7 +64,7 @@ BarWidget {
     id: button
     anchors.fill: parent
     bar: root.bar
-    tooltipText: service ? service.statusText : "Frigate"
+    tooltipText: service ? service.statusText : "omaFrigate"
     iconComponent: Component {
       Item {
         FrigateIcon {

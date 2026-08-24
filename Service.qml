@@ -165,14 +165,14 @@ Item {
   function openLive(camera) {
     var name = String(camera || "")
     if (!name || !root.url) return
-    openPlayer(name, Model.liveUrl(root.url, name), "Frigate – " + name)
+    openPlayer(name, Model.liveUrl(root.url, name), "omaFrigate – " + name)
   }
 
   function openReview(review) {
     if (!review || !review.id) return
     if (review.live) openLive(review.camera)
     else openPlayer("clip-" + review.id, Model.clipUrl(root.url, review.camera, review.startTime, review.endTime),
-      "Frigate – " + String(review.camera || "review"), true)
+      "omaFrigate – " + String(review.camera || "review"), true)
     markReviewed([review.id])
   }
 
@@ -326,9 +326,9 @@ Item {
   }
 
   function sendToast(review, imagePath) {
-    var cmd = ["omarchy-notification-send", "--app-name", "Frigate", "-u", "normal",
+    var cmd = ["omarchy-notification-send", "--app-name", "omaFrigate", "-u", "normal",
       "-g", "󰄀", "--exec", "omarchy-shell shell summon " + Model.PLUGIN_ID + " '{}'",
-      String(review.camera || "Frigate"), Model.toastBody(review)]
+      String(review.camera || "omaFrigate"), Model.toastBody(review)]
     if (imagePath) cmd.splice(5, 0, "--image", imagePath)
     toastProc.command = cmd
     toastProc.running = true

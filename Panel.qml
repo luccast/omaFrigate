@@ -139,7 +139,7 @@ Panel {
             anchors.right: headerActions.left
             anchors.rightMargin: Style.space(8)
             anchors.verticalCenter: parent.verticalCenter
-            text: "Frigate"
+            text: "omaFrigate"
             elide: Text.ElideRight
             color: root.contentForeground
             font.family: root.contentFontFamily
@@ -165,7 +165,7 @@ Panel {
 
             PanelActionButton {
               iconText: "󰌖"
-              tooltipText: "Open Frigate"
+              tooltipText: "Open omaFrigate"
               foreground: root.contentForeground
               fontFamily: root.contentFontFamily
               onClicked: if (root.service) root.service.openInBrowser()
