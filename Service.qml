@@ -21,6 +21,9 @@ Item {
   property int unreadCount: 0
   property int stillRevision: 0
   property bool panelOpen: false
+  property bool liveOpen: false
+  property bool liveStarting: false
+  property string liveCamera: ""
   property bool seededSeen: false
   property var seenIds: []
   property var pendingNotify: null
@@ -35,6 +38,7 @@ Item {
   readonly property string passwordPath: stateDir + "/frigate.json"
   readonly property string seenPath: stateDir + "/frigate-seen.json"
   readonly property string loginBodyPath: cacheDir + "/login.json"
+  readonly property string liveConfigPath: cacheDir + "/mpv-live.conf"
   readonly property var pluginSettings: Model.pluginSettings(shell ? shell.shellConfig : null, Model.PLUGIN_ID)
   readonly property string url: pluginSettings.url
   readonly property string username: pluginSettings.username
@@ -86,6 +90,7 @@ Item {
     persistSettings({ username: "" })
     persistPassword("")
     loginBodyFile.setText("")
+    closeLive()
     ensureCacheProc.command = ["bash", "-c", "rm -f \"$1\"/*.jpg", "--", cacheDir]
     ensureCacheProc.running = true
     root.stillRevision += 1
@@ -99,6 +104,46 @@ Item {
     if (!root.url) return
     openProc.command = ["omarchy", "launch", "browser", root.url]
     openProc.running = true
+  }
+
+  function liveConfigText() {
+    var lines = ["profile=low-latency", "untimed=yes", "cache=no", "audio=no"]
+    if (root.token) lines.push("http-header-fields=Authorization: Bearer " + root.token)
+    return lines.join("\n") + "\n"
+  }
+
+  function startLivePlayer() {
+    if (!root.liveCamera || !root.url) return
+    liveProc.command = [
+      "mpv",
+      "--include=" + liveConfigPath,
+      "--title=Frigate – " + root.liveCamera,
+      "--wayland-app-id=omaFrigate-live",
+      "--force-window=immediate",
+      "--no-audio",
+      "--really-quiet",
+      Model.liveUrl(root.url, root.liveCamera)
+    ]
+    liveProc.running = true
+  }
+
+  function openLive(camera) {
+    var name = String(camera || "")
+    if (!name || !root.url) return
+    if (liveProc.running) liveProc.running = false
+    root.liveCamera = name
+    root.liveOpen = true
+    root.liveStarting = true
+    liveConfigFile.setText(liveConfigText())
+    liveChmodProc.command = ["chmod", "600", liveConfigPath]
+    liveChmodProc.running = true
+  }
+
+  function closeLive() {
+    root.liveStarting = false
+    if (liveProc.running) liveProc.running = false
+    root.liveOpen = false
+    root.liveCamera = ""
   }
 
   function remember(ids) {
@@ -342,6 +387,14 @@ Item {
   }
 
   FileView {
+    id: liveConfigFile
+    path: root.liveConfigPath
+    watchChanges: false
+    atomicWrites: true
+    printErrors: false
+  }
+
+  FileView {
     id: seenFile
     path: root.seenPath
     watchChanges: false
@@ -380,6 +433,26 @@ Item {
   Process {
     id: openProc
     running: false
+  }
+
+  Process {
+    id: liveChmodProc
+    running: false
+    onExited: {
+      if (!root.liveStarting) return
+      root.liveStarting = false
+      root.startLivePlayer()
+    }
+  }
+
+  Process {
+    id: liveProc
+    running: false
+    onExited: {
+      if (root.liveStarting || liveProc.running) return
+      root.liveOpen = false
+      root.liveCamera = ""
+    }
   }
 
   Process {
@@ -432,6 +505,7 @@ Item {
     root.signedIn = false
     root.loginAttempted = false
     root.statusText = "Connecting…"
+    root.closeLive()
   }
 
   Component.onCompleted: {

@@ -283,6 +283,10 @@ function latestUrl(base, camera) {
   return normalizeUrl(base) + "/api/" + encodeURIComponent(String(camera || "")) + "/latest.jpg"
 }
 
+function liveUrl(base, camera) {
+  return normalizeUrl(base) + "/api/" + encodeURIComponent(String(camera || ""))
+}
+
 function snapshotUrl(base, eventId) {
   return normalizeUrl(base) + "/api/events/" + encodeURIComponent(String(eventId || "")) + "/snapshot.jpg"
 }
@@ -339,6 +343,7 @@ if (typeof Qt === "undefined") {
   assert(shouldNotify({ id: "a", severity: "detection", camera: "gate" }, { notificationsEnabled: true, cameras: [] }, []) === false, "detection skipped")
   assert(toastBody({ data: { objects: ["person"], zones: ["driveway"] } }) === "person · driveway", "toast")
   assert(parseLoginResponse("HTTP/1.1 200\r\nSet-Cookie: token=abc.def; HttpOnly\r\n\r\n{}") === "abc.def", "login cookie")
+  assert(liveUrl("http://nvr:5000/", "front left") === "http://nvr:5000/api/front%20left", "liveUrl")
   assert(rememberIds(["1"], ["1", "2"]).join(",") === "1,2", "remember")
   var stats = parseStats(JSON.stringify({
     cameras: { gate: { camera_fps: 5.1, detection_fps: 2, ffmpeg_pid: 9 } },

@@ -182,15 +182,28 @@ Panel {
               width: root.tileWidth
               spacing: Style.space(4)
 
-              Image {
+              Item {
                 width: root.tileWidth
                 height: root.tileHeight
-                fillMode: Image.PreserveAspectCrop
-                asynchronous: true
-                cache: false
-                source: root.service
-                  ? "file://" + root.service.stillPath(modelData.name) + "?r=" + root.stillRevision
-                  : ""
+
+                Image {
+                  anchors.fill: parent
+                  fillMode: Image.PreserveAspectCrop
+                  asynchronous: true
+                  cache: false
+                  source: root.service
+                    ? "file://" + root.service.stillPath(modelData.name) + "?r=" + root.stillRevision
+                    : ""
+                }
+
+                MouseArea {
+                  anchors.fill: parent
+                  cursorShape: Qt.PointingHandCursor
+                  onClicked: {
+                    if (root.service) root.service.openLive(modelData.name)
+                    root.close()
+                  }
+                }
               }
 
               Text {
