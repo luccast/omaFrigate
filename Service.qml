@@ -56,7 +56,7 @@ Item {
   }
 
   function reviewThumbPath(id) {
-    return cacheDir + "/reviews/" + String(id || "").replace(/[^A-Za-z0-9._-]/g, "_") + ".jpg"
+    return cacheDir + "/reviews/" + String(id || "").replace(/[^A-Za-z0-9._-]/g, "_") + ".gif"
   }
 
   function persistSettings(values) {
@@ -264,6 +264,7 @@ Item {
 
   function applyReviews() {
     root.reviews = Model.reviewItems(root.lastReviews, 8)
+    if (root.connected && !stillsProc.running) Qt.callLater(root.startStills)
   }
 
   function applyCameras() {
@@ -293,18 +294,18 @@ Item {
   }
 
   function startStills() {
-    if (!root.panelOpen || stillsProc.running) return false
-    if (!root.cameras.length && !root.reviews.length) return false
+    if (stillsProc.running) return false
     var cmd = ["curl", "-sS", "--max-time", "8"]
     if (root.token) cmd.push("-H", "Authorization: Bearer " + root.token)
-    for (var i = 0; i < root.cameras.length; i++) {
-      cmd.push("-o", stillPath(root.cameras[i].name), Model.latestUrl(root.url, root.cameras[i].name))
+    if (root.panelOpen) {
+      for (var i = 0; i < root.cameras.length; i++) {
+        cmd.push("-o", stillPath(root.cameras[i].name), Model.latestUrl(root.url, root.cameras[i].name))
+      }
     }
     for (var r = 0; r < root.reviews.length; r++) {
-      var detId = root.reviews[r].firstDetection
-      if (!detId) continue
-      cmd.push("-o", reviewThumbPath(root.reviews[r].id), Model.snapshotUrl(root.url, detId))
+      cmd.push("-o", reviewThumbPath(root.reviews[r].id), Model.reviewPreviewUrl(root.url, root.reviews[r].id))
     }
+    if (cmd.length <= 3) return false
     stillsProc.command = cmd
     stillsProc.running = true
     return true
@@ -612,7 +613,7 @@ Item {
 
   Timer {
     interval: Math.max(1, root.refreshSeconds) * 1000
-    running: root.panelOpen && root.connected
+    running: root.connected && (root.panelOpen || root.reviews.length > 0)
     repeat: true
     triggeredOnStart: true
     onTriggered: root.startStills()
