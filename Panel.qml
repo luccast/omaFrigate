@@ -225,9 +225,8 @@ Panel {
                   height: root.tileHeight
                   fillMode: Image.PreserveAspectCrop
                   asynchronous: true
-                  cache: false
                   source: root.service
-                    ? "file://" + root.service.stillPath(tile.modelData.name) + "?r=" + root.stillRevision
+                    ? "file://" + root.service.stillPath(tile.modelData.name)
                     : ""
                 }
 
@@ -341,9 +340,8 @@ Panel {
                   height: Style.space(36)
                   fillMode: Image.PreserveAspectCrop
                   asynchronous: true
-                  cache: false
                   source: root.service
-                    ? "file://" + root.service.reviewThumbPath(reviewRow.modelData.id) + "?r=" + root.stillRevision
+                    ? "file://" + root.service.reviewThumbPath(reviewRow.modelData.id)
                     : ""
                 }
 

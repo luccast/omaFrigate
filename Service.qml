@@ -626,8 +626,8 @@ Item {
 
   Timer {
     interval: Math.max(1, root.refreshSeconds) * 1000
-    running: root.connected && (root.panelOpen || root.reviews.length > 0)
-    repeat: true
+    running: root.panelOpen && root.connected
+    repeat: false
     triggeredOnStart: true
     onTriggered: root.startStills()
   }
