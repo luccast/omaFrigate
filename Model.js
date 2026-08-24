@@ -288,12 +288,82 @@ function liveUrl(base, camera) {
   return normalizeUrl(base) + "/api/" + encodeURIComponent(String(camera || ""))
 }
 
+function clipUrl(base, camera, start, end) {
+  var s = Number(start) || 0
+  var e = Number(end) || 0
+  if (!e || e <= s) e = s + 30
+  return normalizeUrl(base) + "/api/" + encodeURIComponent(String(camera || "")) +
+    "/start/" + s + "/end/" + e + "/clip.mp4"
+}
+
+function reviewThumbUrl(base, review) {
+  var camera = review && review.camera ? review.camera : ""
+  var id = review && review.id ? review.id : ""
+  return normalizeUrl(base) + "/clips/review/thumb-" + encodeURIComponent(String(camera)) +
+    "-" + encodeURIComponent(String(id)) + ".webp"
+}
+
+function reviewPreviewUrl(base, id) {
+  return normalizeUrl(base) + "/api/review/" + encodeURIComponent(String(id || "")) + "/preview"
+}
+
+function viewedUrl(base) {
+  return normalizeUrl(base) + "/api/reviews/viewed"
+}
+
+function viewedBody(ids) {
+  var list = Array.isArray(ids) ? ids.map(String).filter(Boolean) : []
+  return JSON.stringify({ ids: list })
+}
+
+function reviewItems(reviews, limit) {
+  var out = []
+  var list = Array.isArray(reviews) ? reviews : []
+  var max = Math.max(1, parseInt(limit, 10) || 8)
+  for (var i = 0; i < list.length; i++) {
+    var review = list[i]
+    if (!review || !review.id || review.has_been_reviewed) continue
+    if (review.severity && review.severity !== "alert") continue
+    var startTime = Number(review.start_time) || 0
+    var live = review.end_time == null
+    var objects = reviewObjects(review)
+    var zones = reviewZones(review)
+    var when = live ? "now" : timeAgo(startTime)
+    var parts = [objects]
+    if (zones) parts.push(zones)
+    if (when) parts.push(when)
+    out.push({
+      id: String(review.id),
+      camera: String(review.camera || ""),
+      objects: objects,
+      zones: zones,
+      startTime: startTime,
+      endTime: live ? 0 : Number(review.end_time) || 0,
+      live: live,
+      detail: parts.join(" · ")
+    })
+    if (out.length >= max) break
+  }
+  return out
+}
+
 function snapshotUrl(base, eventId) {
   return normalizeUrl(base) + "/api/events/" + encodeURIComponent(String(eventId || "")) + "/snapshot.jpg"
 }
 
+function liveGeometry(index) {
+  var i = Math.max(0, parseInt(index, 10) || 0)
+  var w = 640
+  var h = 360
+  var gap = 16
+  var margin = 40
+  var col = Math.floor(i / 2)
+  var row = i % 2
+  return w + "x" + h + "-" + (margin + col * (w + gap)) + "-" + (margin + row * (h + gap))
+}
+
 function reviewUrl(base) {
-  return normalizeUrl(base) + "/api/review?limit=20"
+  return normalizeUrl(base) + "/api/review?limit=20&reviewed=0"
 }
 
 function configUrl(base) {
@@ -349,6 +419,19 @@ if (typeof Qt === "undefined") {
   assert(toastBody({ data: { objects: ["person"], zones: ["driveway"] } }) === "person · driveway", "toast")
   assert(parseLoginResponse("HTTP/1.1 200\r\nSet-Cookie: token=abc.def; HttpOnly\r\n\r\n{}") === "abc.def", "login cookie")
   assert(liveUrl("http://nvr:5000/", "front left") === "http://nvr:5000/api/front%20left", "liveUrl")
+  assert(liveGeometry(0) === "640x360-40-40", "liveGeometry0")
+  assert(liveGeometry(1) === "640x360-40-416", "liveGeometry1")
+  assert(clipUrl("http://nvr:5000/", "front left", 1.5, 2) === "http://nvr:5000/api/front%20left/start/1.5/end/2/clip.mp4", "clipUrl")
+  assert(reviewThumbUrl("http://nvr", { camera: "garage", id: "1.2-ab" }) === "http://nvr/clips/review/thumb-garage-1.2-ab.webp", "reviewThumb")
+  assert(viewedBody(["a", "b"]) === '{"ids":["a","b"]}', "viewedBody")
+  assert(reviewItems([
+    { id: "a", severity: "alert", camera: "gate", has_been_reviewed: false, start_time: 1, data: { objects: ["person"], zones: ["drive"] } },
+    { id: "b", severity: "detection", camera: "gate", has_been_reviewed: false, start_time: 1 },
+    { id: "c", severity: "alert", camera: "gate", has_been_reviewed: true, start_time: 1 }
+  ], 8).length === 1, "reviewItems")
+  assert(reviewItems([
+    { id: "a", severity: "alert", camera: "gate", has_been_reviewed: false, start_time: 1, data: { objects: ["person"] } }
+  ], 8)[0].objects === "person", "reviewItem objects")
   assert(rememberIds(["1"], ["1", "2"]).join(",") === "1,2", "remember")
   var stats = parseStats(JSON.stringify({
     cameras: { gate: { camera_fps: 5.1, detection_fps: 2, ffmpeg_pid: 9 } },

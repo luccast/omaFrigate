@@ -1,4 +1,5 @@
 import QtQuick
+import QtQuick.Controls
 import qs.Commons
 import qs.Ui
 
@@ -14,6 +15,7 @@ Panel {
   readonly property color contentForeground: bar ? bar.foreground : Color.foreground
   readonly property string contentFontFamily: bar ? bar.fontFamily : Style.font.family
   readonly property var cameras: service ? service.cameras : []
+  readonly property var reviews: service ? service.reviews : []
   readonly property string statusText: service ? service.statusText : "Connecting…"
   readonly property bool needsLogin: service ? service.needsLogin === true : false
   property bool signedIn: false
@@ -102,7 +104,7 @@ Panel {
     open: root.opened
     focusTarget: keyCatcher
     contentWidth: panel.fittedContentWidth(Style.space(420))
-    contentHeight: panel.fittedContentHeight(content.implicitHeight)
+    contentHeight: panel.fittedContentHeight(content.implicitHeight, Style.space(640))
 
     PanelKeyCatcher {
       id: keyCatcher
@@ -111,9 +113,20 @@ Panel {
       onCloseRequested: root.close()
       onTabRequested: function(direction) { root.switchPanel(direction) }
 
+      Flickable {
+        id: panelFlick
+        anchors.fill: parent
+        contentWidth: width
+        contentHeight: content.implicitHeight
+        clip: true
+        boundsBehavior: Flickable.StopAtBounds
+        flickableDirection: Flickable.VerticalFlick
+        interactive: contentHeight > height
+        ScrollBar.vertical: ScrollBar { policy: ScrollBar.AsNeeded }
+
       Column {
         id: content
-        width: parent.width
+        width: panelFlick.width
         spacing: Style.space(10)
 
         Item {
@@ -262,6 +275,113 @@ Panel {
           font.italic: true
         }
 
+        PanelSeparator {
+          visible: root.signedIn && root.reviews.length > 0
+          foreground: root.contentForeground
+        }
+
+        Item {
+          width: parent.width
+          height: Math.max(reviewHeader.implicitHeight, markAllBtn.implicitHeight)
+          visible: root.signedIn && root.reviews.length > 0
+
+          PanelSectionHeader {
+            id: reviewHeader
+            anchors.left: parent.left
+            anchors.verticalCenter: parent.verticalCenter
+            text: "ALERTS"
+            foreground: root.contentForeground
+            fontFamily: root.contentFontFamily
+          }
+
+          PanelActionButton {
+            id: markAllBtn
+            anchors.right: parent.right
+            anchors.verticalCenter: parent.verticalCenter
+            iconText: "󰄬"
+            tooltipText: "Mark all reviewed"
+            foreground: root.contentForeground
+            fontFamily: root.contentFontFamily
+            onClicked: if (root.service) {
+              var ids = []
+              for (var i = 0; i < root.reviews.length; i++) ids.push(root.reviews[i].id)
+              root.service.markReviewed(ids)
+            }
+          }
+        }
+
+        Column {
+          width: parent.width
+          spacing: Style.space(6)
+          visible: root.signedIn && root.reviews.length > 0
+
+          Repeater {
+            model: root.reviews
+
+            CursorSurface {
+              id: reviewRow
+              required property var modelData
+              width: parent.width
+              implicitHeight: reviewContent.implicitHeight + Style.space(10)
+              hasCursor: reviewMouse.containsMouse
+              foreground: root.contentForeground
+              accent: Color.accent
+
+              Row {
+                id: reviewContent
+                anchors.left: parent.left
+                anchors.right: parent.right
+                anchors.verticalCenter: parent.verticalCenter
+                anchors.margins: Style.space(6)
+                spacing: Style.space(8)
+
+                Image {
+                  width: Style.space(48)
+                  height: Style.space(36)
+                  fillMode: Image.PreserveAspectCrop
+                  asynchronous: true
+                  cache: false
+                  source: root.service
+                    ? "file://" + root.service.reviewThumbPath(reviewRow.modelData.id) + "?r=" + root.stillRevision
+                    : ""
+                }
+
+                Column {
+                  width: parent.width - Style.space(48) - parent.spacing
+                  spacing: Style.space(1)
+
+                  Text {
+                    width: parent.width
+                    text: reviewRow.modelData.camera
+                    elide: Text.ElideRight
+                    color: root.contentForeground
+                    font.family: root.contentFontFamily
+                    font.pixelSize: Style.font.caption
+                    font.bold: true
+                  }
+
+                  Text {
+                    width: parent.width
+                    text: reviewRow.modelData.detail || ""
+                    elide: Text.ElideRight
+                    color: Qt.darker(root.contentForeground, 1.4)
+                    font.family: root.contentFontFamily
+                    font.pixelSize: Style.font.caption
+                  }
+                }
+              }
+
+              MouseArea {
+                id: reviewMouse
+                anchors.fill: parent
+                hoverEnabled: true
+                cursorShape: Qt.PointingHandCursor
+                onClicked: if (root.service) root.service.openReview(reviewRow.modelData)
+              }
+            }
+          }
+        }
+
         Column {
           width: parent.width
           spacing: Style.space(8)
@@ -293,6 +413,7 @@ Panel {
             onClicked: root.saveConnection()
           }
         }
+      }
       }
     }
   }

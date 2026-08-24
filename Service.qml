@@ -22,8 +22,9 @@ Item {
   property int stillRevision: 0
   property bool panelOpen: false
   property bool liveOpen: false
-  property bool liveStarting: false
-  property string liveCamera: ""
+  property bool liveConfigReady: false
+  property var reviews: []
+  property var viewedQueue: []
   property bool seededSeen: false
   property var seenIds: []
   property var pendingNotify: null
@@ -38,6 +39,7 @@ Item {
   readonly property string passwordPath: stateDir + "/frigate.json"
   readonly property string seenPath: stateDir + "/frigate-seen.json"
   readonly property string loginBodyPath: cacheDir + "/login.json"
+  readonly property string viewedBodyPath: cacheDir + "/viewed.json"
   readonly property string liveConfigPath: cacheDir + "/mpv-live.conf"
   readonly property var pluginSettings: Model.pluginSettings(shell ? shell.shellConfig : null, Model.PLUGIN_ID)
   readonly property string url: pluginSettings.url
@@ -51,6 +53,10 @@ Item {
 
   function alertPath(id) {
     return cacheDir + "/alerts/" + String(id || "").replace(/[^A-Za-z0-9._-]/g, "_") + ".jpg"
+  }
+
+  function reviewThumbPath(id) {
+    return cacheDir + "/reviews/" + String(id || "").replace(/[^A-Za-z0-9._-]/g, "_") + ".webp"
   }
 
   function persistSettings(values) {
@@ -90,6 +96,8 @@ Item {
     root.configState = { notificationsEnabled: true, cameras: [] }
     root.statsState = { version: "", uptime: 0, diskFree: 0, detectorMs: 0, cameras: {} }
     root.lastReviews = []
+    root.reviews = []
+    root.viewedQueue = []
     root.hostText = ""
     root.statusText = "Signed out"
     root.unreadCount = 0
@@ -98,7 +106,7 @@ Item {
     persistPassword("")
     loginBodyFile.setText("")
     closeLive()
-    ensureCacheProc.command = ["bash", "-c", "rm -f \"$1\"/*.jpg", "--", cacheDir]
+    ensureCacheProc.command = ["bash", "-c", "rm -f \"$1\"/*.jpg \"$1\"/reviews/*", "--", cacheDir]
     ensureCacheProc.running = true
     root.stillRevision += 1
   }
@@ -119,38 +127,61 @@ Item {
     return lines.join("\n") + "\n"
   }
 
-  function startLivePlayer() {
-    if (!root.liveCamera || !root.url) return
-    liveProc.command = [
-      "mpv",
-      "--include=" + liveConfigPath,
-      "--title=Frigate – " + root.liveCamera,
-      "--wayland-app-id=omaFrigate-live",
-      "--force-window=immediate",
-      "--no-audio",
-      "--really-quiet",
-      Model.liveUrl(root.url, root.liveCamera)
-    ]
-    liveProc.running = true
-  }
-
-  function openLive(camera) {
-    var name = String(camera || "")
-    if (!name || !root.url) return
-    if (liveProc.running) liveProc.running = false
-    root.liveCamera = name
-    root.liveOpen = true
-    root.liveStarting = true
+  function writeLiveConfig() {
     liveConfigFile.setText(liveConfigText())
     liveChmodProc.command = ["chmod", "600", liveConfigPath]
     liveChmodProc.running = true
   }
 
+  function liveIndexOf(name) {
+    for (var i = 0; i < liveModel.count; i++) {
+      if (liveModel.get(i).name === name) return i
+    }
+    return -1
+  }
+
+  function syncLiveOpen() {
+    root.liveOpen = liveModel.count > 0
+  }
+
+  function openPlayer(name, url, title) {
+    var key = String(name || "")
+    var media = String(url || "")
+    if (!key || !media) return
+    if (liveIndexOf(key) !== -1) return
+    liveModel.append({
+      name: key,
+      mediaUrl: media,
+      title: String(title || key),
+      geometry: Model.liveGeometry(liveModel.count)
+    })
+    syncLiveOpen()
+    if (!root.liveConfigReady) writeLiveConfig()
+  }
+
+  function openLive(camera) {
+    var name = String(camera || "")
+    if (!name || !root.url) return
+    openPlayer(name, Model.liveUrl(root.url, name), "Frigate – " + name)
+  }
+
+  function openReview(review) {
+    if (!review || !review.id) return
+    if (review.live) openLive(review.camera)
+    else openPlayer("clip-" + review.id, Model.clipUrl(root.url, review.camera, review.startTime, review.endTime),
+      "Frigate – " + String(review.camera || "review"))
+    markReviewed([review.id])
+  }
+
+  function dropLive(name) {
+    var idx = liveIndexOf(name)
+    if (idx !== -1) liveModel.remove(idx)
+    syncLiveOpen()
+  }
+
   function closeLive() {
-    root.liveStarting = false
-    if (liveProc.running) liveProc.running = false
-    root.liveOpen = false
-    root.liveCamera = ""
+    liveModel.clear()
+    syncLiveOpen()
   }
 
   function remember(ids) {
@@ -158,6 +189,42 @@ Item {
     if (JSON.stringify(next) === JSON.stringify(root.seenIds)) return
     root.seenIds = next
     persistSeen()
+  }
+
+  function markReviewed(ids) {
+    var incoming = Array.isArray(ids) ? ids : []
+    var next = []
+    for (var i = 0; i < incoming.length; i++) {
+      var id = String(incoming[i] || "")
+      if (!id || root.viewedQueue.indexOf(id) !== -1) continue
+      next.push(id)
+    }
+    if (!next.length) return
+    var reviews = Array.isArray(root.lastReviews) ? root.lastReviews.slice() : []
+    for (var r = 0; r < reviews.length; r++) {
+      if (reviews[r] && next.indexOf(String(reviews[r].id)) !== -1)
+        reviews[r].has_been_reviewed = true
+    }
+    root.lastReviews = reviews
+    applyReviews()
+    applyCameras()
+    root.viewedQueue = root.viewedQueue.concat(next)
+    remember(next)
+    if (!apiProc.running) startViewed()
+  }
+
+  function startViewed() {
+    if (apiProc.running || !root.viewedQueue.length || !root.url) return false
+    viewedBodyFile.setText(Model.viewedBody(root.viewedQueue))
+    root.apiKind = "viewed"
+    var cmd = ["curl", "-sS", "-w", "\n%{http_code}", "--max-time", "8",
+      "-X", "POST", "-H", "Content-Type: application/json",
+      "--data-binary", "@" + viewedBodyPath]
+    if (root.token) cmd.push("-H", "Authorization: Bearer " + root.token)
+    cmd.push(Model.viewedUrl(root.url))
+    apiProc.command = cmd
+    apiProc.running = true
+    return true
   }
 
   function curlJson(kind, url) {
@@ -195,6 +262,10 @@ Item {
     return curlJson("stats", Model.statsUrl(root.url))
   }
 
+  function applyReviews() {
+    root.reviews = Model.reviewItems(root.lastReviews, 8)
+  }
+
   function applyCameras() {
     root.cameras = Model.mergeCameras(root.configState.cameras, root.statsState, root.lastReviews)
     root.hostText = Model.hostSummary(root.statsState)
@@ -222,11 +293,15 @@ Item {
   }
 
   function startStills() {
-    if (!root.panelOpen || stillsProc.running || !root.cameras.length) return false
+    if (!root.panelOpen || stillsProc.running) return false
+    if (!root.cameras.length && !root.reviews.length) return false
     var cmd = ["curl", "-sS", "--max-time", "8"]
     if (root.token) cmd.push("-H", "Authorization: Bearer " + root.token)
     for (var i = 0; i < root.cameras.length; i++) {
       cmd.push("-o", stillPath(root.cameras[i].name), Model.latestUrl(root.url, root.cameras[i].name))
+    }
+    for (var r = 0; r < root.reviews.length; r++) {
+      cmd.push("-o", reviewThumbPath(root.reviews[r].id), Model.reviewThumbUrl(root.url, root.reviews[r]))
     }
     stillsProc.command = cmd
     stillsProc.running = true
@@ -257,6 +332,10 @@ Item {
       var review = root.pendingNotify
       if (!review) return
       sendToast(review, parsed.status === 200 ? alertPath(review.id) : "")
+      return
+    }
+    if (root.apiKind === "viewed") {
+      if (parsed.status < 400) root.viewedQueue = []
       return
     }
     if (parsed.status === 401 && root.username && root.apiKind !== "login" && !root.loginAttempted) {
@@ -306,6 +385,7 @@ Item {
       if (review) sendToast(review, "")
       return
     }
+    if (root.apiKind === "viewed") return
     if (root.username && root.apiKind !== "login" && !root.loginAttempted) {
       root.retryKind = root.apiKind
       startLogin()
@@ -326,24 +406,28 @@ Item {
   function handleReviews(reviews) {
     var ids = []
     var next = null
+    var popupCams = []
     for (var i = 0; i < reviews.length; i++) {
       var review = reviews[i]
       if (!review || !review.id) continue
       ids.push(String(review.id))
-      if (!next && Model.shouldNotify(review, root.configState, root.seenIds))
-        next = review
+      if (!Model.shouldNotify(review, root.configState, root.seenIds)) continue
+      if (!next) next = review
+      var camera = String(review.camera || "")
+      if (root.popupOnAlert && camera && popupCams.indexOf(camera) === -1)
+        popupCams.push(camera)
     }
     root.lastReviews = reviews
+    applyReviews()
     applyCameras()
     if (!root.seededSeen) {
       remember(ids)
       root.seededSeen = true
       return
     }
+    for (var p = 0; p < popupCams.length; p++) openLive(popupCams[p])
     if (next) {
       remember([next.id])
-      if (root.popupOnAlert && next.camera && root.liveCamera !== String(next.camera))
-        openLive(next.camera)
       startSnapshot(next)
       return
     }
@@ -357,7 +441,12 @@ Item {
       root.retryKind = ""
       if (retry === "reviews") startReviews()
       else if (retry === "stats") startStats()
+      else if (retry === "viewed") startViewed()
       else startConfig()
+      return
+    }
+    if (root.viewedQueue.length) {
+      startViewed()
       return
     }
     if (root.loginPending) return
@@ -404,6 +493,41 @@ Item {
   }
 
   FileView {
+    id: viewedBodyFile
+    path: root.viewedBodyPath
+    watchChanges: false
+    atomicWrites: true
+    printErrors: false
+  }
+
+  ListModel {
+    id: liveModel
+  }
+
+  Instantiator {
+    model: liveModel
+    delegate: Process {
+      required property string name
+      required property string mediaUrl
+      required property string title
+      required property string geometry
+      running: root.liveConfigReady && mediaUrl !== ""
+      command: [
+        "mpv",
+        "--include=" + root.liveConfigPath,
+        "--title=" + title,
+        "--wayland-app-id=omaFrigate-live",
+        "--force-window=immediate",
+        "--geometry=" + geometry,
+        "--no-audio",
+        "--really-quiet",
+        mediaUrl
+      ]
+      onExited: if (!running) root.dropLive(name)
+    }
+  }
+
+  FileView {
     id: seenFile
     path: root.seenPath
     watchChanges: false
@@ -447,21 +571,7 @@ Item {
   Process {
     id: liveChmodProc
     running: false
-    onExited: {
-      if (!root.liveStarting) return
-      root.liveStarting = false
-      root.startLivePlayer()
-    }
-  }
-
-  Process {
-    id: liveProc
-    running: false
-    onExited: {
-      if (root.liveStarting || liveProc.running) return
-      root.liveOpen = false
-      root.liveCamera = ""
-    }
+    onExited: root.liveConfigReady = true
   }
 
   Process {
@@ -520,7 +630,8 @@ Item {
   Component.onCompleted: {
     passwordFile.reload()
     seenFile.reload()
-    ensureCacheProc.command = ["mkdir", "-p", cacheDir + "/alerts"]
+    ensureCacheProc.command = ["mkdir", "-p", cacheDir + "/alerts", cacheDir + "/reviews"]
     ensureCacheProc.running = true
+    writeLiveConfig()
   }
 }
