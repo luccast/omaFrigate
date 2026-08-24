@@ -5,7 +5,7 @@
   "version": "1.0.0",
   "author": "luccast",
   "license": "MIT",
-  "description": "Local Frigate camera stills in the Omarchy bar, with desktop alerts from Frigate review activity.",
+  "description": "Frigate cameras in the Omarchy bar. Latest stills, live camera view, and review Frigate alerts.",
   "kinds": [
     "service",
     "bar-widget"
@@ -17,7 +17,7 @@
   },
   "barWidget": {
     "displayName": "omaFrigate",
-    "description": "Frigate cameras and review alerts",
+    "description": "Camera stills, live camera view, and review Frigate alerts",
     "category": "Info",
     "allowMultiple": false,
     "defaultSection": "right"
