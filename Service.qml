@@ -9,6 +9,9 @@ Item {
   property var shell: null
   property var cameras: []
   property var configState: ({ notificationsEnabled: true, cameras: [] })
+  property var statsState: ({ version: "", uptime: 0, diskFree: 0, detectorMs: 0, cameras: {} })
+  property var lastReviews: []
+  property string hostText: ""
   property bool connected: false
   property bool needsLogin: false
   property bool signedIn: false
@@ -74,6 +77,9 @@ Item {
     root.needsLogin = true
     root.cameras = []
     root.configState = { notificationsEnabled: true, cameras: [] }
+    root.statsState = { version: "", uptime: 0, diskFree: 0, detectorMs: 0, cameras: {} }
+    root.lastReviews = []
+    root.hostText = ""
     root.statusText = "Signed out"
     root.unreadCount = 0
     stopStills()
@@ -125,6 +131,17 @@ Item {
 
   function startReviews() {
     return curlJson("reviews", Model.reviewUrl(root.url))
+  }
+
+  function startStats() {
+    return curlJson("stats", Model.statsUrl(root.url))
+  }
+
+  function applyCameras() {
+    root.cameras = Model.mergeCameras(root.configState.cameras, root.statsState, root.lastReviews)
+    root.hostText = Model.hostSummary(root.statsState)
+    if (root.connected)
+      root.statusText = root.hostText || (root.cameras.length + " cameras")
   }
 
   function startSnapshot(review) {
@@ -209,12 +226,17 @@ Item {
     if (root.apiKind === "config") {
       var config = Model.parseConfig(parsed.body)
       root.configState = config
-      root.cameras = config.cameras
       root.connected = true
       root.signedIn = true
       root.needsLogin = false
-      root.statusText = config.cameras.length ? (config.cameras.length + " cameras") : "Connected"
       root.loginAttempted = false
+      applyCameras()
+      root.retryKind = root.retryKind || "stats"
+      return
+    }
+    if (root.apiKind === "stats") {
+      root.statsState = Model.parseStats(parsed.body)
+      applyCameras()
       return
     }
     if (root.apiKind === "reviews") handleReviews(Model.parseReviews(parsed.body))
@@ -253,6 +275,8 @@ Item {
       if (!next && Model.shouldNotify(review, root.configState, root.seenIds))
         next = review
     }
+    root.lastReviews = reviews
+    applyCameras()
     if (!root.seededSeen) {
       remember(ids)
       root.seededSeen = true
@@ -272,6 +296,7 @@ Item {
       var retry = root.retryKind
       root.retryKind = ""
       if (retry === "reviews") startReviews()
+      else if (retry === "stats") startStats()
       else startConfig()
       return
     }
@@ -377,7 +402,7 @@ Item {
     interval: 15000
     running: root.connected
     repeat: true
-    onTriggered: if (!apiProc.running) root.startConfig()
+    onTriggered: if (!apiProc.running) root.startStats()
   }
 
   Timer {

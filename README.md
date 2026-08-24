@@ -25,7 +25,7 @@ Omarchy rejects plugin-folder symlinks, so copy rather than link.
 
 ## Usage
 
-Click the camera pill to open the snapshot grid. Escape closes it. After login, the form hides and Log out appears.
+Click the camera pill to open the snapshot grid. Escape closes it. After login, the form hides and Log out appears. The status line shows Frigate version, recordings disk free, and detector time. Each camera shows fps or offline plus the last review object.
 
 ```sh
 omarchy-shell shell summon io.github.luccast.frigate '{}'

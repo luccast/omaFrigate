@@ -103,6 +103,123 @@ function parseReviews(raw) {
   }
 }
 
+function parseStats(raw) {
+  var empty = { version: "", uptime: 0, diskFree: 0, detectorMs: 0, cameras: {} }
+  try {
+    var data = JSON.parse(String(raw || ""))
+    if (!data || typeof data !== "object") return empty
+    var service = data.service || {}
+    var storage = (service.storage || {})["/media/frigate/recordings"] || {}
+    var detectors = data.detectors || {}
+    var detectorMs = 0
+    for (var name in detectors) {
+      if (!Object.prototype.hasOwnProperty.call(detectors, name)) continue
+      detectorMs = Number(detectors[name].inference_speed) || 0
+      break
+    }
+    var cameras = {}
+    var source = data.cameras && typeof data.cameras === "object" ? data.cameras : {}
+    for (var camName in source) {
+      if (!Object.prototype.hasOwnProperty.call(source, camName)) continue
+      var cam = source[camName] || {}
+      var fps = Number(cam.camera_fps) || 0
+      cameras[camName] = {
+        fps: fps,
+        detectionFps: Number(cam.detection_fps) || 0,
+        online: fps > 0 && !!cam.ffmpeg_pid
+      }
+    }
+    return {
+      version: String(service.version || ""),
+      uptime: Number(service.uptime) || 0,
+      diskFree: Number(storage.free) || 0,
+      detectorMs: detectorMs,
+      cameras: cameras
+    }
+  } catch (e) {
+    return empty
+  }
+}
+
+function latestReviews(reviews) {
+  var latest = {}
+  var list = Array.isArray(reviews) ? reviews : []
+  for (var i = 0; i < list.length; i++) {
+    var review = list[i]
+    if (!review || !review.camera || latest[review.camera]) continue
+    latest[review.camera] = {
+      objects: reviewObjects(review),
+      severity: String(review.severity || ""),
+      startTime: Number(review.start_time) || 0,
+      live: review.end_time == null
+    }
+  }
+  return latest
+}
+
+function timeAgo(ts) {
+  var t = Number(ts) || 0
+  if (!t) return ""
+  var sec = Math.max(0, Math.floor(Date.now() / 1000 - t))
+  if (sec < 60) return sec + "s"
+  if (sec < 3600) return Math.floor(sec / 60) + "m"
+  if (sec < 86400) return Math.floor(sec / 3600) + "h"
+  return Math.floor(sec / 86400) + "d"
+}
+
+function formatMb(mb) {
+  var n = Number(mb) || 0
+  if (n >= 1024) return (Math.round(n / 102.4) / 10) + " GB"
+  return Math.round(n) + " MB"
+}
+
+function cameraDetail(st, last) {
+  var parts = []
+  if (st && st.online === false) parts.push("offline")
+  else if (st && st.fps) parts.push((Math.round(st.fps * 10) / 10) + " fps")
+  if (last && last.objects) {
+    var when = last.live ? "now" : timeAgo(last.startTime)
+    var label = (last.severity === "alert" ? "alert " : "") + last.objects
+    parts.push(when ? label + " · " + when : label)
+  }
+  return parts.join(" · ")
+}
+
+function mergeCameras(configCameras, stats, reviews) {
+  var cameras = Array.isArray(configCameras) ? configCameras : []
+  var statsCams = stats && stats.cameras ? stats.cameras : {}
+  var latest = latestReviews(reviews)
+  var out = []
+  for (var i = 0; i < cameras.length; i++) {
+    var cam = cameras[i] || {}
+    var name = String(cam.name || "")
+    var st = statsCams[name] || {}
+    var last = latest[name] || {}
+    out.push({
+      name: name,
+      enabled: cam.enabled !== false,
+      notifyEnabled: cam.notifyEnabled !== false,
+      notifySuspendedUntil: cam.notifySuspendedUntil || 0,
+      fps: Number(st.fps) || 0,
+      online: st.online === true,
+      lastObjects: last.objects || "",
+      lastSeverity: last.severity || "",
+      live: last.live === true,
+      detail: cameraDetail(st, last)
+    })
+  }
+  return out
+}
+
+function hostSummary(stats) {
+  if (!stats) return ""
+  var parts = []
+  if (stats.version) parts.push(stats.version)
+  if (stats.diskFree) parts.push(formatMb(stats.diskFree) + " free")
+  if (stats.detectorMs) parts.push(Math.round(stats.detectorMs) + "ms detect")
+  return parts.join(" · ")
+}
+
 function cameraAllowed(configState, cameraName) {
   if (!configState || configState.notificationsEnabled === false) return false
   var cameras = configState.cameras || []
@@ -171,11 +288,15 @@ function snapshotUrl(base, eventId) {
 }
 
 function reviewUrl(base) {
-  return normalizeUrl(base) + "/api/review?severity=alert&limit=20"
+  return normalizeUrl(base) + "/api/review?limit=20"
 }
 
 function configUrl(base) {
   return normalizeUrl(base) + "/api/config"
+}
+
+function statsUrl(base) {
+  return normalizeUrl(base) + "/api/stats"
 }
 
 function loginUrl(base) {
@@ -219,6 +340,21 @@ if (typeof Qt === "undefined") {
   assert(toastBody({ data: { objects: ["person"], zones: ["driveway"] } }) === "person · driveway", "toast")
   assert(parseLoginResponse("HTTP/1.1 200\r\nSet-Cookie: token=abc.def; HttpOnly\r\n\r\n{}") === "abc.def", "login cookie")
   assert(rememberIds(["1"], ["1", "2"]).join(",") === "1,2", "remember")
+  var stats = parseStats(JSON.stringify({
+    cameras: { gate: { camera_fps: 5.1, detection_fps: 2, ffmpeg_pid: 9 } },
+    detectors: { coral: { inference_speed: 7.8 } },
+    service: { version: "0.17.1", storage: { "/media/frigate/recordings": { free: 1671.1 } } }
+  }))
+  assert(stats.cameras.gate.online === true && stats.detectorMs === 7.8, "stats")
+  assert(hostSummary(stats) === "0.17.1 · 1.6 GB free · 8ms detect", "host")
+  var merged = mergeCameras([{ name: "gate" }], stats, [
+    { camera: "gate", severity: "alert", start_time: Date.now() / 1000 - 90, end_time: Date.now() / 1000 - 80, data: { objects: ["person"] } }
+  ])
+  assert(merged[0].detail === "5.1 fps · alert person · 1m", "merge")
+  var live = mergeCameras([{ name: "gate" }], stats, [
+    { camera: "gate", severity: "detection", start_time: Date.now() / 1000, end_time: null, data: { objects: ["car"] } }
+  ])
+  assert(live[0].detail === "5.1 fps · car · now", "live")
   if (fails) {
     console.error(fails + " failed")
     throw new Error("Model.js checks failed")
