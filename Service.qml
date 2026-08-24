@@ -56,7 +56,7 @@ Item {
   }
 
   function reviewThumbPath(id) {
-    return cacheDir + "/reviews/" + String(id || "").replace(/[^A-Za-z0-9._-]/g, "_") + ".webp"
+    return cacheDir + "/reviews/" + String(id || "").replace(/[^A-Za-z0-9._-]/g, "_") + ".jpg"
   }
 
   function persistSettings(values) {
@@ -301,7 +301,9 @@ Item {
       cmd.push("-o", stillPath(root.cameras[i].name), Model.latestUrl(root.url, root.cameras[i].name))
     }
     for (var r = 0; r < root.reviews.length; r++) {
-      cmd.push("-o", reviewThumbPath(root.reviews[r].id), Model.reviewThumbUrl(root.url, root.reviews[r]))
+      var detId = root.reviews[r].firstDetection
+      if (!detId) continue
+      cmd.push("-o", reviewThumbPath(root.reviews[r].id), Model.snapshotUrl(root.url, detId))
     }
     stillsProc.command = cmd
     stillsProc.running = true

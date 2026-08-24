@@ -340,6 +340,7 @@ function reviewItems(reviews, limit) {
       startTime: startTime,
       endTime: live ? 0 : Number(review.end_time) || 0,
       live: live,
+      firstDetection: firstDetectionId(review),
       detail: parts.join(" · ")
     })
     if (out.length >= max) break
@@ -432,6 +433,9 @@ if (typeof Qt === "undefined") {
   assert(reviewItems([
     { id: "a", severity: "alert", camera: "gate", has_been_reviewed: false, start_time: 1, data: { objects: ["person"] } }
   ], 8)[0].objects === "person", "reviewItem objects")
+  assert(reviewItems([
+    { id: "a", severity: "alert", camera: "gate", has_been_reviewed: false, start_time: 1, data: { objects: ["person"], detections: ["d1"] } }
+  ], 8)[0].firstDetection === "d1", "reviewItem firstDetection")
   assert(rememberIds(["1"], ["1", "2"]).join(",") === "1,2", "remember")
   var stats = parseStats(JSON.stringify({
     cameras: { gate: { camera_fps: 5.1, detection_fps: 2, ffmpeg_pid: 9 } },
