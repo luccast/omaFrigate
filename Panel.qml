@@ -16,7 +16,7 @@ Panel {
   readonly property var cameras: service ? service.cameras : []
   readonly property string statusText: service ? service.statusText : "Connecting…"
   readonly property bool needsLogin: service ? service.needsLogin === true : false
-  readonly property bool signedIn: service ? service.connected === true && !needsLogin : false
+  property bool signedIn: false
   readonly property int stillRevision: service ? Number(service.stillRevision || 0) : 0
   readonly property int tileWidth: Style.space(168)
   readonly property int tileHeight: Style.space(96)
@@ -64,21 +64,34 @@ Panel {
     root.service.token = ""
     root.service.loginAttempted = false
     root.service.connected = false
+    root.service.signedIn = false
+    root.signedIn = false
     root.service.statusText = "Connecting…"
     Qt.callLater(function() { if (root.service) root.service.tick() })
   }
 
   function logout() {
     if (root.service) root.service.logout()
+    root.signedIn = false
     passField.text = ""
     userField.text = ""
   }
 
-  onServiceChanged: {
+  function syncAuth() {
+    root.signedIn = !!(root.service && root.service.signedIn)
     if (!root.service) return
-    urlField.text = root.service.url
-    userField.text = root.service.username
-    passField.text = root.service.password
+    if (!urlField.activeFocus) urlField.text = root.service.url
+    if (!userField.activeFocus) userField.text = root.service.username
+    if (!passField.activeFocus) passField.text = root.service.password
+  }
+
+  onServiceChanged: root.syncAuth()
+
+  Connections {
+    target: root.service
+    function onSignedInChanged() { root.syncAuth() }
+    function onConnectedChanged() { root.syncAuth() }
+    function onStatusTextChanged() { root.syncAuth() }
   }
 
   KeyboardPanel {
@@ -172,6 +185,7 @@ Panel {
           width: parent.width
           spacing: Style.space(8)
           visible: !root.signedIn
+          height: visible ? implicitHeight : 0
 
           TextField {
             id: urlField

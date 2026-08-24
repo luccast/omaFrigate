@@ -11,6 +11,7 @@ Item {
   property var configState: ({ notificationsEnabled: true, cameras: [] })
   property bool connected: false
   property bool needsLogin: false
+  property bool signedIn: false
   property string statusText: "Connecting…"
   property string token: ""
   property string password: ""
@@ -69,6 +70,7 @@ Item {
     root.loginAttempted = false
     root.token = ""
     root.connected = false
+    root.signedIn = false
     root.needsLogin = true
     root.cameras = []
     root.configState = { notificationsEnabled: true, cameras: [] }
@@ -191,6 +193,7 @@ Item {
       var token = Model.parseLoginResponse(parsed.body)
       if (parsed.status >= 400 || !token) {
         root.needsLogin = true
+        root.signedIn = false
         root.statusText = "Login failed"
         return
       }
@@ -208,6 +211,7 @@ Item {
       root.configState = config
       root.cameras = config.cameras
       root.connected = true
+      root.signedIn = true
       root.needsLogin = false
       root.statusText = config.cameras.length ? (config.cameras.length + " cameras") : "Connected"
       root.loginAttempted = false
@@ -229,10 +233,12 @@ Item {
     }
     if (root.apiKind === "login") {
       root.needsLogin = true
+      root.signedIn = false
       root.statusText = "Login failed"
       return
     }
     root.connected = false
+    root.signedIn = false
     root.statusText = root.username ? "Needs login" : "Unreachable"
     if (root.username && !root.password) root.needsLogin = true
   }
@@ -387,6 +393,7 @@ Item {
   onUrlChanged: {
     root.token = ""
     root.connected = false
+    root.signedIn = false
     root.loginAttempted = false
     root.statusText = "Connecting…"
   }
