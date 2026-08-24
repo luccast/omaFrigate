@@ -185,7 +185,7 @@ Panel {
             }
 
             PanelActionButton {
-              iconText: "󰌖"
+              iconText: "󰖟"
               tooltipText: "Open omaFrigate"
               foreground: root.contentForeground
               fontFamily: root.contentFontFamily
@@ -315,7 +315,7 @@ Panel {
             id: markAllBtn
             anchors.right: parent.right
             anchors.verticalCenter: parent.verticalCenter
-            iconText: "󰄬"
+            iconText: "󰄭"
             tooltipText: "Mark all reviewed"
             foreground: root.contentForeground
             fontFamily: root.contentFontFamily
