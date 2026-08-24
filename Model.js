@@ -9,7 +9,7 @@ function normalizeUrl(url) {
 
 function pluginSettings(config, id) {
   var key = String(id || PLUGIN_ID)
-  var empty = { url: DEFAULT_URL, username: "", refreshSeconds: 2 }
+  var empty = { url: DEFAULT_URL, username: "", refreshSeconds: 2, popupOnAlert: false }
   if (!config || typeof config !== "object") return empty
 
   function fromEntry(entry) {
@@ -18,7 +18,8 @@ function pluginSettings(config, id) {
     return {
       url: normalizeUrl(entry.url),
       username: String(entry.username || ""),
-      refreshSeconds: Math.max(1, parseInt(entry.refreshSeconds, 10) || 2)
+      refreshSeconds: Math.max(1, parseInt(entry.refreshSeconds, 10) || 2),
+      popupOnAlert: entry.popupOnAlert === true
     }
   }
 
@@ -336,6 +337,10 @@ if (typeof Qt === "undefined") {
   assert(pluginSettings({
     bar: { layout: { right: [{ id: PLUGIN_ID, url: "http://nvr:8971", username: "admin" }] } }
   }).username === "admin", "pluginSettings")
+  assert(pluginSettings({}).popupOnAlert === false, "popup default")
+  assert(pluginSettings({
+    bar: { layout: { right: [{ id: PLUGIN_ID, popupOnAlert: true }] } }
+  }).popupOnAlert === true, "popup on")
   assert(parsePasswordFile('{"password":"secret"}') === "secret", "password")
   assert(parseConfig('{"notifications":{"enabled":false},"cameras":{"gate":{}}}').notificationsEnabled === false, "config notify")
   assert(shouldNotify({ id: "a", severity: "alert", camera: "gate" }, { notificationsEnabled: true, cameras: [] }, []) === true, "new alert")

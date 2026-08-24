@@ -53,7 +53,7 @@ o.window("^omaFrigate-live$", {
 })
 ```
 
-Frigate notification flags from `/api/config` are respected. Only unseen `severity=alert` review items toast.
+Frigate notification flags from `/api/config` are respected. Only unseen `severity=alert` review items toast. Turn on **Live popup** in the panel to also open the floating camera; it is off by default.
 
 ## Remove
 

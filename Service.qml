@@ -43,6 +43,7 @@ Item {
   readonly property string url: pluginSettings.url
   readonly property string username: pluginSettings.username
   readonly property int refreshSeconds: pluginSettings.refreshSeconds
+  readonly property bool popupOnAlert: pluginSettings.popupOnAlert === true
 
   function stillPath(camera) {
     return cacheDir + "/" + String(camera || "").replace(/[^A-Za-z0-9._-]/g, "_") + ".jpg"
@@ -53,7 +54,13 @@ Item {
   }
 
   function persistSettings(values) {
-    var entry = { id: Model.PLUGIN_ID, url: root.url, username: root.username, refreshSeconds: root.refreshSeconds }
+    var entry = {
+      id: Model.PLUGIN_ID,
+      url: root.url,
+      username: root.username,
+      refreshSeconds: root.refreshSeconds,
+      popupOnAlert: root.popupOnAlert
+    }
     for (var key in values) entry[key] = values[key]
     if (root.shell && typeof root.shell.updateEntryInline === "function")
       root.shell.updateEntryInline(Model.PLUGIN_ID, entry)
@@ -335,6 +342,8 @@ Item {
     }
     if (next) {
       remember([next.id])
+      if (root.popupOnAlert && next.camera && root.liveCamera !== String(next.camera))
+        openLive(next.camera)
       startSnapshot(next)
       return
     }
