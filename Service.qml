@@ -564,7 +564,8 @@ Item {
           "--force-window=immediate",
           "--geometry=" + geometry,
           "--no-audio",
-          "--really-quiet"
+          "--really-quiet",
+          "--video-aspect-override=" + (root.aspectRatio === "4:3" ? "4/3" : "16/9")
         ]
         if (loop) cmd.push("--loop-file=inf", "--untimed=no", "--cache=yes")
         else if (String(mediaUrl).indexOf("rtsp://") === 0) cmd.push("--untimed=no", "--cache=yes")
