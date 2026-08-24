@@ -146,7 +146,7 @@ Item {
     root.liveOpen = liveModel.count > 0
   }
 
-  function openPlayer(name, url, title) {
+  function openPlayer(name, url, title, loop) {
     var key = String(name || "")
     var media = String(url || "")
     if (!key || !media) return
@@ -155,7 +155,8 @@ Item {
       name: key,
       mediaUrl: media,
       title: String(title || key),
-      geometry: Model.liveGeometry(liveModel.count)
+      geometry: Model.liveGeometry(liveModel.count),
+      loop: loop === true
     })
     syncLiveOpen()
     if (!root.liveConfigReady) writeLiveConfig()
@@ -171,7 +172,7 @@ Item {
     if (!review || !review.id) return
     if (review.live) openLive(review.camera)
     else openPlayer("clip-" + review.id, Model.clipUrl(root.url, review.camera, review.startTime, review.endTime),
-      "Frigate – " + String(review.camera || "review"))
+      "Frigate – " + String(review.camera || "review"), true)
     markReviewed([review.id])
   }
 
@@ -527,18 +528,23 @@ Item {
       required property string mediaUrl
       required property string title
       required property string geometry
+      required property bool loop
       running: root.liveConfigReady && mediaUrl !== ""
-      command: [
-        "mpv",
-        "--include=" + root.liveConfigPath,
-        "--title=" + title,
-        "--wayland-app-id=omaFrigate-live",
-        "--force-window=immediate",
-        "--geometry=" + geometry,
-        "--no-audio",
-        "--really-quiet",
-        mediaUrl
-      ]
+      command: {
+        var cmd = [
+          "mpv",
+          "--include=" + root.liveConfigPath,
+          "--title=" + title,
+          "--wayland-app-id=omaFrigate-live",
+          "--force-window=immediate",
+          "--geometry=" + geometry,
+          "--no-audio",
+          "--really-quiet"
+        ]
+        if (loop) cmd.push("--loop-file=inf")
+        cmd.push(mediaUrl)
+        return cmd
+      }
       onExited: if (!running) root.dropLive(name)
     }
   }
