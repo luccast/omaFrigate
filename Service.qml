@@ -541,7 +541,7 @@ Item {
           "--no-audio",
           "--really-quiet"
         ]
-        if (loop) cmd.push("--loop-file=inf")
+        if (loop) cmd.push("--loop-file=inf", "--untimed=no", "--cache=yes")
         cmd.push(mediaUrl)
         return cmd
       }
