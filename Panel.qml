@@ -177,52 +177,63 @@ Panel {
           Repeater {
             model: root.cameras
 
-            Column {
+            CursorSurface {
+              id: tile
               required property var modelData
               width: root.tileWidth
-              spacing: Style.space(4)
+              implicitHeight: tileContent.implicitHeight + Style.space(12)
+              hasCursor: tileMouse.containsMouse
+              foreground: root.contentForeground
+              accent: Color.accent
 
-              Item {
-                width: root.tileWidth
-                height: root.tileHeight
+              Column {
+                id: tileContent
+                anchors.left: parent.left
+                anchors.right: parent.right
+                anchors.top: parent.top
+                anchors.margins: Style.space(6)
+                spacing: Style.space(4)
 
                 Image {
-                  anchors.fill: parent
+                  width: parent.width
+                  height: root.tileHeight
                   fillMode: Image.PreserveAspectCrop
                   asynchronous: true
                   cache: false
                   source: root.service
-                    ? "file://" + root.service.stillPath(modelData.name) + "?r=" + root.stillRevision
+                    ? "file://" + root.service.stillPath(tile.modelData.name) + "?r=" + root.stillRevision
                     : ""
                 }
 
-                MouseArea {
-                  anchors.fill: parent
-                  cursorShape: Qt.PointingHandCursor
-                  onClicked: {
-                    if (root.service) root.service.openLive(modelData.name)
-                    root.close()
-                  }
+                Text {
+                  width: parent.width
+                  text: tile.modelData.name
+                  elide: Text.ElideRight
+                  color: root.contentForeground
+                  font.family: root.contentFontFamily
+                  font.pixelSize: Style.font.caption
+                }
+
+                Text {
+                  visible: !!tile.modelData.detail
+                  width: parent.width
+                  text: tile.modelData.detail || ""
+                  elide: Text.ElideRight
+                  color: Qt.darker(root.contentForeground, 1.4)
+                  font.family: root.contentFontFamily
+                  font.pixelSize: Style.font.caption
                 }
               }
 
-              Text {
-                width: parent.width
-                text: modelData.name
-                elide: Text.ElideRight
-                color: root.contentForeground
-                font.family: root.contentFontFamily
-                font.pixelSize: Style.font.caption
-              }
-
-              Text {
-                visible: !!modelData.detail
-                width: parent.width
-                text: modelData.detail || ""
-                elide: Text.ElideRight
-                color: Qt.darker(root.contentForeground, 1.4)
-                font.family: root.contentFontFamily
-                font.pixelSize: Style.font.caption
+              MouseArea {
+                id: tileMouse
+                anchors.fill: parent
+                hoverEnabled: true
+                cursorShape: Qt.PointingHandCursor
+                onClicked: {
+                  if (root.service) root.service.openLive(tile.modelData.name)
+                  root.close()
+                }
               }
             }
           }
