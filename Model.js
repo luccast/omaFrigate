@@ -322,7 +322,7 @@ function reviewItems(reviews, limit) {
   var max = Math.max(1, parseInt(limit, 10) || 8)
   for (var i = 0; i < list.length; i++) {
     var review = list[i]
-    if (!review || !review.id || review.has_been_reviewed) continue
+    if (!review || !review.id) continue
     if (review.severity && review.severity !== "alert") continue
     var startTime = Number(review.start_time) || 0
     var live = review.end_time == null
@@ -340,6 +340,7 @@ function reviewItems(reviews, limit) {
       startTime: startTime,
       endTime: live ? 0 : Number(review.end_time) || 0,
       live: live,
+      viewed: !!review.has_been_reviewed,
       firstDetection: firstDetectionId(review),
       detail: parts.join(" · ")
     })
@@ -364,7 +365,7 @@ function liveGeometry(index) {
 }
 
 function reviewUrl(base) {
-  return normalizeUrl(base) + "/api/review?limit=20&reviewed=0"
+  return normalizeUrl(base) + "/api/review?limit=20"
 }
 
 function configUrl(base) {
@@ -429,10 +430,13 @@ if (typeof Qt === "undefined") {
     { id: "a", severity: "alert", camera: "gate", has_been_reviewed: false, start_time: 1, data: { objects: ["person"], zones: ["drive"] } },
     { id: "b", severity: "detection", camera: "gate", has_been_reviewed: false, start_time: 1 },
     { id: "c", severity: "alert", camera: "gate", has_been_reviewed: true, start_time: 1 }
-  ], 8).length === 1, "reviewItems")
+  ], 8).length === 2, "reviewItems")
   assert(reviewItems([
     { id: "a", severity: "alert", camera: "gate", has_been_reviewed: false, start_time: 1, data: { objects: ["person"] } }
   ], 8)[0].objects === "person", "reviewItem objects")
+  assert(reviewItems([
+    { id: "c", severity: "alert", camera: "gate", has_been_reviewed: true, start_time: 1, data: { objects: ["person"] } }
+  ], 8)[0].viewed === true, "reviewItem viewed")
   assert(reviewItems([
     { id: "a", severity: "alert", camera: "gate", has_been_reviewed: false, start_time: 1, data: { objects: ["person"], detections: ["d1"] } }
   ], 8)[0].firstDetection === "d1", "reviewItem firstDetection")

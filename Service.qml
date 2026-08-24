@@ -25,6 +25,7 @@ Item {
   property bool liveConfigReady: false
   property var reviews: []
   property var viewedQueue: []
+  property var dismissedSet: ({})
   property bool seededSeen: false
   property var seenIds: []
   property var pendingNotify: null
@@ -98,6 +99,7 @@ Item {
     root.lastReviews = []
     root.reviews = []
     root.viewedQueue = []
+    root.dismissedSet = ({})
     root.hostText = ""
     root.statusText = "Signed out"
     root.unreadCount = 0
@@ -171,6 +173,12 @@ Item {
     else openPlayer("clip-" + review.id, Model.clipUrl(root.url, review.camera, review.startTime, review.endTime),
       "Frigate – " + String(review.camera || "review"))
     markReviewed([review.id])
+  }
+
+  function dismissReview(id) {
+    root.dismissedSet[String(id)] = true
+    markReviewed([id])
+    applyReviews()
   }
 
   function dropLive(name) {
@@ -263,7 +271,12 @@ Item {
   }
 
   function applyReviews() {
-    root.reviews = Model.reviewItems(root.lastReviews, 8)
+    var items = Model.reviewItems(root.lastReviews, 8)
+    var filtered = []
+    for (var i = 0; i < items.length; i++) {
+      if (!root.dismissedSet[items[i].id]) filtered.push(items[i])
+    }
+    root.reviews = filtered
     if (root.connected && !stillsProc.running) Qt.callLater(root.startStills)
   }
 

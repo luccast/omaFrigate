@@ -326,6 +326,7 @@ Panel {
               hasCursor: reviewMouse.containsMouse
               foreground: root.contentForeground
               accent: Color.accent
+              opacity: reviewRow.modelData.viewed ? 0.5 : 1.0
 
               Row {
                 id: reviewContent
@@ -347,7 +348,7 @@ Panel {
                 }
 
                 Column {
-                  width: parent.width - Style.space(48) - parent.spacing
+                  width: parent.width - Style.space(48) - dismissBtn.width - parent.spacing * 2
                   spacing: Style.space(1)
 
                   Text {
@@ -368,6 +369,15 @@ Panel {
                     font.family: root.contentFontFamily
                     font.pixelSize: Style.font.caption
                   }
+                }
+
+                PanelActionButton {
+                  id: dismissBtn
+                  iconText: "󰄬"
+                  tooltipText: "Dismiss"
+                  foreground: root.contentForeground
+                  fontFamily: root.contentFontFamily
+                  onClicked: if (root.service) root.service.dismissReview(reviewRow.modelData.id)
                 }
               }
 
