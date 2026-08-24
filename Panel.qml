@@ -133,18 +133,25 @@ Panel {
           width: parent.width
           height: Math.max(titleLabel.implicitHeight, headerActions.implicitHeight)
 
-          Text {
-            id: titleLabel
+          Row {
             anchors.left: parent.left
-            anchors.right: headerActions.left
-            anchors.rightMargin: Style.space(8)
             anchors.verticalCenter: parent.verticalCenter
-            text: "omaFrigate"
-            elide: Text.ElideRight
-            color: root.contentForeground
-            font.family: root.contentFontFamily
-            font.pixelSize: Style.font.subtitle
-            font.bold: true
+            spacing: Style.space(4)
+
+            FrigateIcon {
+              iconSize: Style.font.subtitle
+              color: root.contentForeground
+            }
+
+            Text {
+              id: titleLabel
+              text: "omaFrigate"
+              elide: Text.ElideRight
+              color: root.contentForeground
+              font.family: root.contentFontFamily
+              font.pixelSize: Style.font.subtitle
+              font.bold: true
+            }
           }
 
           Row {
