@@ -244,7 +244,7 @@ Panel {
                   fillMode: Image.PreserveAspectCrop
                   asynchronous: true
                   source: root.service
-                    ? "file://" + root.service.stillPath(tile.modelData.name)
+                    ? "file://" + root.service.stillPath(tile.modelData.name) + "?" + root.stillRevision
                     : ""
                 }
 
@@ -367,7 +367,7 @@ Panel {
                   fillMode: Image.PreserveAspectCrop
                   asynchronous: true
                   source: root.service
-                    ? "file://" + root.service.reviewThumbPath(reviewRow.modelData.id)
+                    ? "file://" + root.service.reviewThumbPath(reviewRow.modelData.id) + "?" + root.stillRevision
                     : ""
                 }
 

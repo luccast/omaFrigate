@@ -87,11 +87,10 @@ function serializeSeenFile(ids) {
 }
 
 function parseConfig(raw) {
-  var empty = { notificationsEnabled: true, cameras: [] }
+  var empty = { cameras: [] }
   try {
     var data = JSON.parse(String(raw || ""))
     if (!data || typeof data !== "object") return empty
-    var globalNotify = !(data.notifications && data.notifications.enabled === false)
     var cameras = []
     var source = data.cameras && typeof data.cameras === "object" ? data.cameras : {}
     for (var name in source) {
@@ -100,14 +99,12 @@ function parseConfig(raw) {
       var notify = camera.notifications || {}
       cameras.push({
         name: String(name),
-        enabled: camera.enabled !== false,
-        notifyEnabled: notify.enabled !== false,
         notifySuspendedUntil: Number(notify.suspended || 0) || 0,
         rtspUrl: rtspMainUrl(camera)
       })
     }
     cameras.sort(function(a, b) { return a.name < b.name ? -1 : a.name > b.name ? 1 : 0 })
-    return { notificationsEnabled: globalNotify, cameras: cameras }
+    return { cameras: cameras }
   } catch (e) {
     return empty
   }
@@ -123,7 +120,7 @@ function parseReviews(raw) {
 }
 
 function parseStats(raw) {
-  var empty = { version: "", uptime: 0, diskFree: 0, detectorMs: 0, cameras: {} }
+  var empty = { version: "", diskFree: 0, detectorMs: 0, cameras: {} }
   try {
     var data = JSON.parse(String(raw || ""))
     if (!data || typeof data !== "object") return empty
@@ -142,15 +139,10 @@ function parseStats(raw) {
       if (!Object.prototype.hasOwnProperty.call(source, camName)) continue
       var cam = source[camName] || {}
       var fps = Number(cam.camera_fps) || 0
-      cameras[camName] = {
-        fps: fps,
-        detectionFps: Number(cam.detection_fps) || 0,
-        online: fps > 0 && !!cam.ffmpeg_pid
-      }
+      cameras[camName] = { fps: fps, online: fps > 0 && !!cam.ffmpeg_pid }
     }
     return {
       version: String(service.version || ""),
-      uptime: Number(service.uptime) || 0,
       diskFree: Number(storage.free) || 0,
       detectorMs: detectorMs,
       cameras: cameras
@@ -214,18 +206,7 @@ function mergeCameras(configCameras, stats, reviews) {
     var name = String(cam.name || "")
     var st = statsCams[name] || {}
     var last = latest[name] || {}
-    out.push({
-      name: name,
-      enabled: cam.enabled !== false,
-      notifyEnabled: cam.notifyEnabled !== false,
-      notifySuspendedUntil: cam.notifySuspendedUntil || 0,
-      fps: Number(st.fps) || 0,
-      online: st.online === true,
-      lastObjects: last.objects || "",
-      lastSeverity: last.severity || "",
-      live: last.live === true,
-      detail: cameraDetail(st, last)
-    })
+    out.push({ name: name, detail: cameraDetail(st, last) })
   }
   return out
 }
@@ -331,13 +312,6 @@ function clipUrl(base, camera, start, end) {
     "/start/" + s + "/end/" + e + "/clip.mp4"
 }
 
-function reviewThumbUrl(base, review) {
-  var camera = review && review.camera ? review.camera : ""
-  var id = review && review.id ? review.id : ""
-  return normalizeUrl(base) + "/clips/review/thumb-" + encodeURIComponent(String(camera)) +
-    "-" + encodeURIComponent(String(id)) + ".webp"
-}
-
 function reviewPreviewUrl(base, id) {
   return normalizeUrl(base) + "/api/review/" + encodeURIComponent(String(id || "")) + "/preview"
 }
@@ -370,13 +344,10 @@ function reviewItems(reviews, limit) {
     out.push({
       id: String(review.id),
       camera: String(review.camera || ""),
-      objects: objects,
-      zones: zones,
       startTime: startTime,
       endTime: live ? 0 : Number(review.end_time) || 0,
       live: live,
       viewed: !!review.has_been_reviewed,
-      firstDetection: firstDetectionId(review),
       detail: parts.join(" · ")
     })
     if (out.length >= max) break
@@ -457,12 +428,12 @@ if (typeof Qt === "undefined") {
   }).popupOnAlert === true, "popup on")
   assert(parsePasswordFile('{"password":"secret","rtspPassword":"cam"}').password === "secret", "password")
   assert(parsePasswordFile('{"password":"secret","rtspPassword":"cam"}').rtspPassword === "cam", "rtsp password")
-  assert(parseConfig('{"notifications":{"enabled":false},"cameras":{"gate":{}}}').notificationsEnabled === false, "config notify")
-  assert(shouldNotify({ id: "a", severity: "alert", camera: "gate" }, { notificationsEnabled: true, cameras: [] }, []) === true, "new alert")
-  assert(shouldNotify({ id: "a", severity: "alert", camera: "gate" }, { notificationsEnabled: false, cameras: [{ name: "gate", notifyEnabled: false }] }, []) === true, "frigate notify service off")
-  assert(shouldNotify({ id: "a", severity: "alert", camera: "gate" }, { notificationsEnabled: true, cameras: [{ name: "gate", notifySuspendedUntil: Date.now() / 1000 + 600 }] }, []) === false, "camera suspended")
-  assert(shouldNotify({ id: "a", severity: "alert", camera: "gate" }, { notificationsEnabled: true, cameras: [] }, ["a"]) === false, "seen alert")
-  assert(shouldNotify({ id: "a", severity: "detection", camera: "gate" }, { notificationsEnabled: true, cameras: [] }, []) === false, "detection skipped")
+  assert(parseConfig('{"cameras":{"gate":{"notifications":{"suspended":1}}}}').cameras[0].name === "gate", "config camera")
+  assert(shouldNotify({ id: "a", severity: "alert", camera: "gate" }, { cameras: [] }, []) === true, "new alert")
+  assert(shouldNotify({ id: "a", severity: "alert", camera: "gate" }, { cameras: [{ name: "gate" }] }, []) === true, "notify without frigate service")
+  assert(shouldNotify({ id: "a", severity: "alert", camera: "gate" }, { cameras: [{ name: "gate", notifySuspendedUntil: Date.now() / 1000 + 600 }] }, []) === false, "camera suspended")
+  assert(shouldNotify({ id: "a", severity: "alert", camera: "gate" }, { cameras: [] }, ["a"]) === false, "seen alert")
+  assert(shouldNotify({ id: "a", severity: "detection", camera: "gate" }, { cameras: [] }, []) === false, "detection skipped")
   assert(toastBody({ data: { objects: ["person"], zones: ["driveway"] } }) === "person · driveway", "toast")
   assert(parseLoginResponse("HTTP/1.1 200\r\nSet-Cookie: token=abc.def; HttpOnly\r\n\r\n{}") === "abc.def", "login cookie")
   assert(liveUrl("http://nvr:5000/", "front left") === "http://nvr:5000/api/front%20left", "liveUrl")
@@ -476,7 +447,7 @@ if (typeof Qt === "undefined") {
   assert(liveGeometry(0, "4:3") === "640x480-40-40", "liveGeometry43")
   assert(liveGeometry(1) === "640x360-40-416", "liveGeometry1")
   assert(clipUrl("http://nvr:5000/", "front left", 1.5, 2) === "http://nvr:5000/api/front%20left/start/1.5/end/2/clip.mp4", "clipUrl")
-  assert(reviewThumbUrl("http://nvr", { camera: "garage", id: "1.2-ab" }) === "http://nvr/clips/review/thumb-garage-1.2-ab.webp", "reviewThumb")
+  assert(reviewPreviewUrl("http://nvr", "1.2-ab") === "http://nvr/api/review/1.2-ab/preview", "reviewPreview")
   assert(viewedBody(["a", "b"]) === '{"ids":["a","b"]}', "viewedBody")
   assert(reviewItems([
     { id: "a", severity: "alert", camera: "gate", has_been_reviewed: false, start_time: 1, data: { objects: ["person"], zones: ["drive"] } },
@@ -485,13 +456,11 @@ if (typeof Qt === "undefined") {
   ], 8).length === 2, "reviewItems")
   assert(reviewItems([
     { id: "a", severity: "alert", camera: "gate", has_been_reviewed: false, start_time: 1, data: { objects: ["person"] } }
-  ], 8)[0].objects === "person", "reviewItem objects")
+  ], 8)[0].detail.indexOf("person") === 0, "reviewItem detail")
   assert(reviewItems([
     { id: "c", severity: "alert", camera: "gate", has_been_reviewed: true, start_time: 1, data: { objects: ["person"] } }
   ], 8)[0].viewed === true, "reviewItem viewed")
-  assert(reviewItems([
-    { id: "a", severity: "alert", camera: "gate", has_been_reviewed: false, start_time: 1, data: { objects: ["person"], detections: ["d1"] } }
-  ], 8)[0].firstDetection === "d1", "reviewItem firstDetection")
+  assert(firstDetectionId({ data: { detections: ["d1"] } }) === "d1", "firstDetection")
   assert(rememberIds(["1"], ["1", "2"]).join(",") === "1,2", "remember")
   var stats = parseStats(JSON.stringify({
     cameras: { gate: { camera_fps: 5.1, detection_fps: 2, ffmpeg_pid: 9 } },

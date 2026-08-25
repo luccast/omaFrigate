@@ -8,10 +8,9 @@ Item {
 
   property var shell: null
   property var cameras: []
-  property var configState: ({ notificationsEnabled: true, cameras: [] })
-  property var statsState: ({ version: "", uptime: 0, diskFree: 0, detectorMs: 0, cameras: {} })
+  property var configState: ({ cameras: [] })
+  property var statsState: ({ version: "", diskFree: 0, detectorMs: 0, cameras: {} })
   property var lastReviews: []
-  property string hostText: ""
   property bool connected: false
   property bool needsLogin: false
   property bool signedIn: false
@@ -22,7 +21,6 @@ Item {
   property int unreadCount: 0
   property int stillRevision: 0
   property bool panelOpen: false
-  property bool liveOpen: false
   property bool liveConfigReady: false
   property var reviews: []
   property var viewedQueue: []
@@ -52,17 +50,14 @@ Item {
   readonly property bool hqStream: pluginSettings.hqStream === true
   readonly property string aspectRatio: pluginSettings.aspectRatio
 
-  function stillPath(camera) {
-    return cacheDir + "/" + String(camera || "").replace(/[^A-Za-z0-9._-]/g, "_") + ".jpg"
+  function cachePath(subdir, id, ext) {
+    return cacheDir + (subdir ? "/" + subdir : "") + "/" +
+      String(id || "").replace(/[^A-Za-z0-9._-]/g, "_") + ext
   }
 
-  function alertPath(id) {
-    return cacheDir + "/alerts/" + String(id || "").replace(/[^A-Za-z0-9._-]/g, "_") + ".jpg"
-  }
-
-  function reviewThumbPath(id) {
-    return cacheDir + "/reviews/" + String(id || "").replace(/[^A-Za-z0-9._-]/g, "_") + ".gif"
-  }
+  function stillPath(camera) { return cachePath("", camera, ".jpg") }
+  function alertPath(id) { return cachePath("alerts", id, ".jpg") }
+  function reviewThumbPath(id) { return cachePath("reviews", id, ".gif") }
 
   function persistSettings(values) {
     var entry = {
@@ -90,10 +85,6 @@ Item {
     }
   }
 
-  function stopStills() {
-    if (stillsProc.running) stillsProc.running = false
-  }
-
   function logout() {
     root.loginPending = false
     root.loginAttempted = false
@@ -102,16 +93,15 @@ Item {
     root.signedIn = false
     root.needsLogin = true
     root.cameras = []
-    root.configState = { notificationsEnabled: true, cameras: [] }
-    root.statsState = { version: "", uptime: 0, diskFree: 0, detectorMs: 0, cameras: {} }
+    root.configState = { cameras: [] }
+    root.statsState = { version: "", diskFree: 0, detectorMs: 0, cameras: {} }
     root.lastReviews = []
     root.reviews = []
     root.viewedQueue = []
     root.dismissedSet = ({})
-    root.hostText = ""
     root.statusText = "Signed out"
     root.unreadCount = 0
-    stopStills()
+    if (stillsProc.running) stillsProc.running = false
     persistSettings({ username: "", rtspUsername: "", hqStream: false, aspectRatio: "16:9" })
     persistPassword("", "")
     loginBodyFile.setText("")
@@ -150,10 +140,6 @@ Item {
     return -1
   }
 
-  function syncLiveOpen() {
-    root.liveOpen = liveModel.count > 0
-  }
-
   function openPlayer(name, url, title, loop) {
     var key = String(name || "")
     var media = String(url || "")
@@ -166,7 +152,6 @@ Item {
       geometry: Model.liveGeometry(liveModel.count, root.aspectRatio),
       loop: loop === true
     })
-    syncLiveOpen()
     if (!root.liveConfigReady) writeLiveConfig()
   }
 
@@ -203,12 +188,10 @@ Item {
   function dropLive(name) {
     var idx = liveIndexOf(name)
     if (idx !== -1) liveModel.remove(idx)
-    syncLiveOpen()
   }
 
   function closeLive() {
     liveModel.clear()
-    syncLiveOpen()
   }
 
   function remember(ids) {
@@ -278,18 +261,6 @@ Item {
     return true
   }
 
-  function startConfig() {
-    return curlJson("config", Model.configUrl(root.url))
-  }
-
-  function startReviews() {
-    return curlJson("reviews", Model.reviewUrl(root.url))
-  }
-
-  function startStats() {
-    return curlJson("stats", Model.statsUrl(root.url))
-  }
-
   function applyReviews() {
     var items = Model.reviewItems(root.lastReviews, 8)
     var filtered = []
@@ -302,9 +273,8 @@ Item {
 
   function applyCameras() {
     root.cameras = Model.mergeCameras(root.configState.cameras, root.statsState, root.lastReviews)
-    root.hostText = Model.hostSummary(root.statsState)
     if (root.connected)
-      root.statusText = root.hostText || (root.cameras.length + " cameras")
+      root.statusText = Model.hostSummary(root.statsState) || (root.cameras.length + " cameras")
   }
 
   function startSnapshot(review) {
@@ -483,10 +453,10 @@ Item {
     if (root.retryKind) {
       var retry = root.retryKind
       root.retryKind = ""
-      if (retry === "reviews") startReviews()
-      else if (retry === "stats") startStats()
+      if (retry === "reviews") curlJson("reviews", Model.reviewUrl(root.url))
+      else if (retry === "stats") curlJson("stats", Model.statsUrl(root.url))
       else if (retry === "viewed") startViewed()
-      else startConfig()
+      else curlJson("config", Model.configUrl(root.url))
       return
     }
     if (root.viewedQueue.length) {
@@ -499,10 +469,10 @@ Item {
       return
     }
     if (!root.connected) {
-      startConfig()
+      curlJson("config", Model.configUrl(root.url))
       return
     }
-    startReviews()
+    curlJson("reviews", Model.reviewUrl(root.url))
   }
 
   function clearUnread() {
@@ -664,7 +634,7 @@ Item {
     interval: 15000
     running: root.connected
     repeat: true
-    onTriggered: if (!apiProc.running) root.startStats()
+    onTriggered: if (!apiProc.running) root.curlJson("stats", Model.statsUrl(root.url))
   }
 
   Timer {
@@ -675,7 +645,7 @@ Item {
     onTriggered: root.startStills()
   }
 
-  onPanelOpenChanged: if (!root.panelOpen) root.stopStills()
+  onPanelOpenChanged: if (!root.panelOpen && stillsProc.running) stillsProc.running = false
 
   onUrlChanged: {
     root.token = ""
