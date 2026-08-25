@@ -640,7 +640,7 @@ Item {
   Timer {
     interval: Math.max(1, root.refreshSeconds) * 1000
     running: root.panelOpen && root.connected
-    repeat: false
+    repeat: true
     triggeredOnStart: true
     onTriggered: root.startStills()
   }

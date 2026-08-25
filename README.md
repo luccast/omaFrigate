@@ -94,6 +94,7 @@ Open the gear in the panel header (visible after login).
 | --- | --- |
 | Live popup on alerts | Off |
 | 4:3 aspect ratio | Off (16:9) |
+| Still refresh (seconds) | 2 |
 | Higher quality stream | Off (MJPEG) |
 
 ## Remove

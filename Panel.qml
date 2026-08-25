@@ -82,6 +82,13 @@ Panel {
     root.service.persistPassword(root.service.password, rtspPassField.text)
   }
 
+  function saveRefresh() {
+    if (!root.service) return
+    var n = Math.max(1, parseInt(refreshField.text, 10) || 2)
+    refreshField.text = String(n)
+    root.service.persistSettings({ refreshSeconds: n })
+  }
+
   function logout() {
     if (root.service) root.service.logout()
     root.signedIn = false
@@ -100,6 +107,7 @@ Panel {
     if (!passField.activeFocus) passField.text = root.service.password
     if (!rtspUserField.activeFocus) rtspUserField.text = root.service.rtspUsername
     if (!rtspPassField.activeFocus) rtspPassField.text = root.service.rtspPassword
+    if (!refreshField.activeFocus) refreshField.text = String(root.service.refreshSeconds)
   }
 
   onServiceChanged: root.syncAuth()
@@ -124,7 +132,7 @@ Panel {
     PanelKeyCatcher {
       id: keyCatcher
       anchors.fill: parent
-      blocked: urlField.activeFocus || userField.activeFocus || passField.activeFocus || rtspUserField.activeFocus || rtspPassField.activeFocus
+      blocked: urlField.activeFocus || userField.activeFocus || passField.activeFocus || rtspUserField.activeFocus || rtspPassField.activeFocus || refreshField.activeFocus
       onCloseRequested: root.close()
       onTabRequested: function(direction) { root.switchPanel(direction) }
 
@@ -450,6 +458,22 @@ Panel {
             fontFamily: root.contentFontFamily
             onClicked: if (root.service)
               root.service.persistSettings({ aspectRatio: root.service.aspectRatio === "4:3" ? "16:9" : "4:3" })
+          }
+
+          Text {
+            width: parent.width
+            text: "Still refresh (seconds)"
+            color: root.contentForeground
+            font.family: root.contentFontFamily
+            font.pixelSize: Style.font.caption
+          }
+
+          TextField {
+            id: refreshField
+            width: parent.width
+            placeholderText: "2"
+            foreground: root.contentForeground
+            onEditingFinished: root.saveRefresh()
           }
 
           PanelSeparator {
