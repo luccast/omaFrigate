@@ -1,8 +1,8 @@
 # omaFrigate
 
-Frigate cameras in the Omarchy bar.
+Check your Frigate cameras from the Omarchy bar.
 
-Click the camera icon for latest stills, a live view, and review alerts. A camera you temporarily mute in Frigate stays silent here. Frigate's unused email/webpush notification service does not have to be on.
+View latest stills, a floating live view, and review Frigate alerts without opening a browser. Click a toast or the bar icon to see what happened or enable live popup alerts to show a live stream of a detection as it happens.
 
 ![omaFrigate panel with camera stills and review alerts](preview.jpg)
 
