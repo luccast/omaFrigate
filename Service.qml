@@ -244,9 +244,10 @@ Item {
     if (apiProc.running || !root.viewedQueue.length || !root.url) return false
     viewedBodyFile.setText(Model.viewedBody(root.viewedQueue))
     root.apiKind = "viewed"
-    var cmd = ["curl", "-sS", "-w", "\n%{http_code}", "--max-time", "8",
+    var cmd = ["curl", "-sS", "-w", "\n%{http_code}"].concat(Model.curlBounds(Model.API_MAX_BYTES), [
       "-X", "POST", "-H", "Content-Type: application/json",
-      "--data-binary", "@" + viewedBodyPath]
+      "--data-binary", "@" + viewedBodyPath
+    ])
     if (root.token) cmd.push("-H", "Authorization: Bearer " + root.token)
     cmd.push(Model.viewedUrl(root.url))
     apiProc.command = cmd
@@ -257,7 +258,7 @@ Item {
   function curlJson(kind, url) {
     if (apiProc.running) return false
     root.apiKind = kind
-    var cmd = ["curl", "-sS", "-w", "\n%{http_code}", "--max-time", "8"]
+    var cmd = ["curl", "-sS", "-w", "\n%{http_code}"].concat(Model.curlBounds(Model.API_MAX_BYTES))
     if (root.token) cmd.push("-H", "Authorization: Bearer " + root.token)
     if (kind === "login")
       cmd.push("-i", "-X", "POST", "-H", "Content-Type: application/json", "--data-binary", "@" + loginBodyPath)
@@ -317,7 +318,8 @@ Item {
     root.apiKind = "snapshot"
     ensureCacheProc.command = ["mkdir", "-p", cacheDir + "/alerts"]
     ensureCacheProc.running = true
-    var cmd = ["curl", "-sS", "-o", alertPath(review.id), "-w", "\n%{http_code}", "--max-time", "8"]
+    var cmd = ["curl", "-sS", "-o", alertPath(review.id), "-w", "\n%{http_code}"].concat(
+      Model.curlBounds(Model.IMAGE_MAX_BYTES))
     if (root.token) cmd.push("-H", "Authorization: Bearer " + root.token)
     cmd.push(Model.snapshotUrl(root.url, eventId))
     apiProc.command = cmd
@@ -327,17 +329,20 @@ Item {
 
   function startStills() {
     if (stillsProc.running) return false
-    var cmd = ["curl", "-sS", "--max-time", "8"]
+    var cmd = ["curl", "-sS"].concat(Model.curlBounds(Model.IMAGE_MAX_BYTES))
     if (root.token) cmd.push("-H", "Authorization: Bearer " + root.token)
+    var added = 0
     if (root.panelOpen) {
       for (var i = 0; i < root.cameras.length; i++) {
         cmd.push("-o", stillPath(root.cameras[i].name), Model.latestUrl(root.url, root.cameras[i].name))
+        added += 1
       }
     }
     for (var r = 0; r < root.reviews.length; r++) {
       cmd.push("-o", reviewThumbPath(root.reviews[r].id), Model.reviewPreviewUrl(root.url, root.reviews[r].id))
+      added += 1
     }
-    if (cmd.length <= 3) return false
+    if (!added) return false
     stillsProc.command = cmd
     stillsProc.running = true
     return true
@@ -362,6 +367,10 @@ Item {
   }
 
   function handleApiSuccess(text) {
+    if (String(text || "").length > Model.API_MAX_BYTES + 16) {
+      handleApiFailure()
+      return
+    }
     var parsed = splitHttp(text)
     if (root.apiKind === "snapshot") {
       var review = root.pendingNotify
@@ -633,11 +642,12 @@ Item {
     id: apiProc
     running: false
     stdout: StdioCollector {
+      id: apiOut
       waitForEnd: true
-      onStreamFinished: root.handleApiSuccess(text)
     }
     onExited: function(exitCode) {
       if (exitCode !== 0) root.handleApiFailure()
+      else root.handleApiSuccess(apiOut.text)
       Qt.callLater(root.tick)
     }
   }

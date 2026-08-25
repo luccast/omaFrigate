@@ -1,6 +1,14 @@
 var PLUGIN_ID = "io.github.luccast.frigate"
 var DEFAULT_URL = "http://127.0.0.1:5000"
 var SEEN_LIMIT = 200
+var API_MAX_BYTES = 2 * 1024 * 1024
+var IMAGE_MAX_BYTES = 8 * 1024 * 1024
+
+function curlBounds(maxBytes) {
+  var n = parseInt(maxBytes, 10)
+  if (!(n > 0)) n = API_MAX_BYTES
+  return ["--max-time", "8", "--max-filesize", String(n)]
+}
 
 function normalizeUrl(url) {
   var value = String(url || "").replace(/^\s+|\s+$/g, "").replace(/\/+$/, "")
@@ -432,6 +440,11 @@ if (typeof Qt === "undefined") {
     }
   }
 
+  assert(API_MAX_BYTES === 2097152, "api max bytes")
+  assert(IMAGE_MAX_BYTES === 8388608, "image max bytes")
+  assert(curlBounds(API_MAX_BYTES).join(" ") === "--max-time 8 --max-filesize 2097152", "curl json bounds")
+  assert(curlBounds(IMAGE_MAX_BYTES).join(" ") === "--max-time 8 --max-filesize 8388608", "curl image bounds")
+  assert(curlBounds(0).join(" ") === "--max-time 8 --max-filesize 2097152", "curl bounds fallback")
   assert(normalizeUrl(" http://cam:5000/ ") === "http://cam:5000", "normalizeUrl")
   assert(pluginSettings({
     bar: { layout: { right: [{ id: PLUGIN_ID, url: "http://nvr:8971", username: "admin" }] } }
