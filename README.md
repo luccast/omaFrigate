@@ -2,7 +2,9 @@
 
 Frigate cameras in the Omarchy bar.
 
-Click the camera icon for latest stills, a live view, and review alerts. Desktop toasts follow Frigate's own notification settings, so a camera you silenced in Frigate stays silent here.
+Click the camera icon for latest stills, a live view, and review alerts. A camera you temporarily mute in Frigate stays silent here. Frigate's unused email/webpush notification service does not have to be on.
+
+![omaFrigate panel with camera stills and review alerts](preview.jpg)
 
 Plugins run unsandboxed inside `omarchy-shell` with your user permissions. Read the code before you enable it.
 
@@ -78,7 +80,7 @@ Hyprland reloads on save. If a window looks wrong, run `hyprctl reload` and chec
 
 ## Alerts
 
-omaFrigate polls Frigate reviews and only toasts **unseen `severity=alert` items**. It honors Frigate's global and per-camera notification flags, including a camera that is temporarily suspended.
+omaFrigate polls Frigate reviews and only toasts **unseen `severity=alert` items**. A camera that is temporarily muted in Frigate stays silent. Frigate's email/webpush notification service can stay off.
 
 Click a toast to open the panel. Turn on **Live popup on alerts** in settings if you also want the floating camera to appear; that is off by default.
 

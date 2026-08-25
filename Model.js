@@ -232,11 +232,9 @@ function hostSummary(stats) {
 }
 
 function cameraAllowed(configState, cameraName) {
-  if (!configState || configState.notificationsEnabled === false) return false
-  var cameras = configState.cameras || []
+  var cameras = configState && configState.cameras ? configState.cameras : []
   for (var i = 0; i < cameras.length; i++) {
     if (cameras[i].name !== cameraName) continue
-    if (cameras[i].notifyEnabled === false) return false
     if (cameras[i].notifySuspendedUntil && cameras[i].notifySuspendedUntil > Date.now() / 1000)
       return false
     return true
@@ -448,6 +446,8 @@ if (typeof Qt === "undefined") {
   assert(parsePasswordFile('{"password":"secret","rtspPassword":"cam"}').rtspPassword === "cam", "rtsp password")
   assert(parseConfig('{"notifications":{"enabled":false},"cameras":{"gate":{}}}').notificationsEnabled === false, "config notify")
   assert(shouldNotify({ id: "a", severity: "alert", camera: "gate" }, { notificationsEnabled: true, cameras: [] }, []) === true, "new alert")
+  assert(shouldNotify({ id: "a", severity: "alert", camera: "gate" }, { notificationsEnabled: false, cameras: [{ name: "gate", notifyEnabled: false }] }, []) === true, "frigate notify service off")
+  assert(shouldNotify({ id: "a", severity: "alert", camera: "gate" }, { notificationsEnabled: true, cameras: [{ name: "gate", notifySuspendedUntil: Date.now() / 1000 + 600 }] }, []) === false, "camera suspended")
   assert(shouldNotify({ id: "a", severity: "alert", camera: "gate" }, { notificationsEnabled: true, cameras: [] }, ["a"]) === false, "seen alert")
   assert(shouldNotify({ id: "a", severity: "detection", camera: "gate" }, { notificationsEnabled: true, cameras: [] }, []) === false, "detection skipped")
   assert(toastBody({ data: { objects: ["person"], zones: ["driveway"] } }) === "person · driveway", "toast")
