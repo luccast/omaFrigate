@@ -58,23 +58,59 @@ Stills refresh only while the panel is open.
 
 ## Live windows
 
-Each camera opens its own `mpv` window. Multiple cameras stack. Super-drag moves them; the window close button or `q` closes one.
+Each camera opens its own `mpv` window, tagged with a Wayland app-id of
+`omaFrigate-live-slot0` through `omaFrigate-live-slot3` (cycling after 4
+concurrently open views) so up to 4 can line up in a 2x2 grid, filling most
+of the screen, instead of stacking on each other — Hyprland ignores mpv's own
+`--geometry` positioning hint for new floating windows, so the position has
+to come from a per-slot window rule instead. Closing one view immediately
+frees its slot for the next one (the first free slot is reused, not the next
+number in sequence). Super-drag moves a window; the window close button or
+`q` closes one.
 
 By default the stream is Frigate's MJPEG endpoint (`/api/<camera>`). In the panel gear, **Higher quality stream** switches to the camera's RTSP main stream (H264). That needs the camera's own username and password, not the Frigate login.
 
-Add this to `~/.config/hypr/hyprland.lua` (after Omarchy's defaults) so the windows float instead of tiling:
+Add this to `~/.config/hypr/hyprland.lua` (after Omarchy's defaults) so the windows float instead of tiling. Each slot gets a static position rule forming a 2x2 grid. The coordinates below assume a 1920x1080 panel at 1.6x scale (logical resolution 1200x675); Hyprland's `monitor_w`/`window_w` move expressions evaluate against a different coordinate space on a scaled monitor, so the positions are plain logical pixels:
 
 ```lua
-o.window("^omaFrigate-live", {
+local omafrigate_live_base = {
   tag = "-default-opacity",
   float = true,
   pin = true,
   no_dim = true,
   opacity = "1 1",
-  size = { 640, 360 },
   keep_aspect_ratio = true,
-})
+}
+
+local omafrigate_live_size = { 528, 297 }
+
+-- 2x2 grid centered on the 1200x675 logical board: 528-wide windows, 16px
+-- gaps, 64px side and ~32px top/bottom margins.
+local omafrigate_slot = {
+  { 64, 32 },    -- slot0 top-left
+  { 608, 32 },   -- slot1 top-right
+  { 64, 345 },   -- slot2 bottom-left
+  { 608, 345 },  -- slot3 bottom-right
+}
+
+for slot, pos in ipairs(omafrigate_slot) do
+  local appid = "^omaFrigate-live-slot" .. (slot - 1) .. "$"
+  local rule = {}
+  for key, value in pairs(omafrigate_live_base) do
+    rule[key] = value
+  end
+  rule.size = omafrigate_live_size
+  o.window(appid, rule)
+  o.window(appid, { float = true, move = { pos[1], pos[2] } })
+end
 ```
+
+Size and `move` are split into two `o.window()` calls because combining them
+in one rule makes placement non-deterministic on Hyprland 0.54+
+(hyprwm/Hyprland#13409). For other monitor sizes, adjust the positions to
+`(monitor_w - (cols * window_w + (cols - 1) * gap)) / 2 +
+ col * (window_w + gap)` for each `col` (and likewise for rows), using the
+logical resolution of your monitor.
 
 Hyprland reloads on save. If a window looks wrong, run `hyprctl reload` and check `hyprctl configerrors`.
 

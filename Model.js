@@ -361,13 +361,14 @@ function snapshotUrl(base, eventId) {
 
 function liveGeometry(index, aspect) {
   var i = Math.max(0, parseInt(index, 10) || 0)
-  var w = 640
-  var h = aspect === "4:3" ? 480 : 360
+  var w = 528
+  var h = 297
   var gap = 16
-  var margin = 40
-  var col = Math.floor(i / 2)
-  var row = i % 2
-  return w + "x" + h + "-" + (margin + col * (w + gap)) + "-" + (margin + row * (h + gap))
+  var cols = 2
+  var s = i % 4
+  var x = 64 + (s % cols) * (w + gap)
+  var y = 32 + Math.floor(s / cols) * (h + gap)
+  return w + "x" + h + "-" + x + "-" + y
 }
 
 function reviewUrl(base) {
@@ -443,9 +444,11 @@ if (typeof Qt === "undefined") {
     { path: "rtsp://admin:pass@1.2.3.4:554/main", roles: ["record"] }
   ] } }) === "rtsp://1.2.3.4:554/main", "rtspMainUrl")
   assert(rtspWithCreds("rtsp://1.2.3.4:554/main", "admin", "pass") === "rtsp://admin:pass@1.2.3.4:554/main", "rtspWithCreds")
-  assert(liveGeometry(0) === "640x360-40-40", "liveGeometry0")
-  assert(liveGeometry(0, "4:3") === "640x480-40-40", "liveGeometry43")
-  assert(liveGeometry(1) === "640x360-40-416", "liveGeometry1")
+  assert(liveGeometry(0) === "528x297-64-32", "liveGeometry0")
+  assert(liveGeometry(1) === "528x297-608-32", "liveGeometry1")
+  assert(liveGeometry(2) === "528x297-64-345", "liveGeometry2")
+  assert(liveGeometry(3) === "528x297-608-345", "liveGeometry3")
+  assert(liveGeometry(4) === "528x297-64-32", "liveGeometry4cycle")
   assert(clipUrl("http://nvr:5000/", "front left", 1.5, 2) === "http://nvr:5000/api/front%20left/start/1.5/end/2/clip.mp4", "clipUrl")
   assert(reviewPreviewUrl("http://nvr", "1.2-ab") === "http://nvr/api/review/1.2-ab/preview", "reviewPreview")
   assert(viewedBody(["a", "b"]) === '{"ids":["a","b"]}', "viewedBody")

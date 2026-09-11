@@ -41,7 +41,7 @@ Item {
   readonly property string loginBodyPath: cacheDir + "/login.json"
   readonly property string viewedBodyPath: cacheDir + "/viewed.json"
   readonly property string liveConfigPath: cacheDir + "/mpv-live.conf"
-  readonly property var pluginSettings: Model.pluginSettings(shell ? shell.shellConfig : null, Model.PLUGIN_ID)
+  readonly property var pluginSettings: Model.pluginSettings(shell ? { bar: shell.barConfig } : null, Model.PLUGIN_ID)
   readonly property string url: pluginSettings.url
   readonly property string username: pluginSettings.username
   readonly property int refreshSeconds: pluginSettings.refreshSeconds
@@ -140,16 +140,35 @@ Item {
     return -1
   }
 
+  // Hyprland ignores mpv's own --geometry hint for new floating windows
+  // (every one maps centered, on top of the others). hyprland.lua has a
+  // static position rule per "omaFrigate-live-slotN" app-id instead, so
+  // each concurrently open window needs a distinct slot to actually end
+  // up side by side rather than stacked. Pick the first slot not already
+  // claimed by a live window (instead of liveModel.count) so that closing
+  // one view doesn't cause the next window to reuse an in-use slot and
+  // stack on top of a still-open one. Cycles after 4 concurrent views.
+  function nextLiveSlot() {
+    var used = []
+    for (var i = 0; i < liveModel.count; i++) used.push(liveModel.get(i).slot)
+    for (var s = 0; s < 4; s++) {
+      if (used.indexOf(s) === -1) return s
+    }
+    return liveModel.count % 4
+  }
+
   function openPlayer(name, url, title, loop) {
     var key = String(name || "")
     var media = String(url || "")
     if (!key || !media) return
     if (liveIndexOf(key) !== -1) return
+    var slot = root.nextLiveSlot()
     liveModel.append({
       name: key,
       mediaUrl: media,
       title: String(title || key),
-      geometry: Model.liveGeometry(liveModel.count, root.aspectRatio),
+      geometry: Model.liveGeometry(slot, root.aspectRatio),
+      slot: slot,
       loop: loop === true
     })
     if (!root.liveConfigReady) writeLiveConfig()
@@ -532,6 +551,7 @@ Item {
       required property string mediaUrl
       required property string title
       required property string geometry
+      required property int slot
       required property bool loop
       running: root.liveConfigReady && mediaUrl !== ""
       command: {
@@ -539,7 +559,7 @@ Item {
           "mpv",
           "--include=" + root.liveConfigPath,
           "--title=" + title,
-          "--wayland-app-id=omaFrigate-live",
+          "--wayland-app-id=omaFrigate-live-slot" + slot,
           "--force-window=immediate",
           "--geometry=" + geometry,
           "--no-audio",
@@ -626,7 +646,12 @@ Item {
     interval: 5000
     running: true
     repeat: true
-    triggeredOnStart: true
+    // Not triggeredOnStart: passwordFile's async load hasn't necessarily
+    // finished by the time this component completes, so an immediate tick()
+    // can attempt login with an empty password, fail, and set
+    // loginAttempted permanently, blocking retries until the user manually
+    // saves the connection form again. Waiting for the normal interval
+    // gives the local file read plenty of time to finish first.
     onTriggered: root.tick()
   }
 
@@ -646,6 +671,15 @@ Item {
   }
 
   onPanelOpenChanged: if (!root.panelOpen && stillsProc.running) stillsProc.running = false
+
+  // openPlayer() only calls writeLiveConfig() while liveConfigReady is still
+  // false, so the mpv config (and whatever Authorization header it carries)
+  // is otherwise written exactly once, at Component.onCompleted, before
+  // login has had any chance to run. Every live/clip view opened after that
+  // reuses that first file, so on an authenticated Frigate instance every
+  // stream request goes out with no token and gets rejected. Rewrite it
+  // whenever the token actually changes so authenticated streams work.
+  onTokenChanged: writeLiveConfig()
 
   onUrlChanged: {
     root.token = ""
