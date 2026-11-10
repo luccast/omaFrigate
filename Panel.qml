@@ -116,7 +116,9 @@ Panel {
     target: root.service
     function onSignedInChanged() { root.syncAuth() }
     function onConnectedChanged() { root.syncAuth() }
-    function onStatusTextChanged() { root.syncAuth() }
+    function onUrlChanged() { root.syncAuth() }
+    function onUsernameChanged() { root.syncAuth() }
+    function onPasswordChanged() { root.syncAuth() }
   }
 
   KeyboardPanel {
@@ -537,18 +539,21 @@ Panel {
           TextField {
             id: urlField
             width: parent.width
+            onAccepted: root.saveConnection()
             placeholderText: "http://127.0.0.1:5000"
           }
 
           TextField {
             id: userField
             width: parent.width
+            onAccepted: root.saveConnection()
             placeholderText: "username (blank for :5000)"
           }
 
           TextField {
             id: passField
             width: parent.width
+            onAccepted: root.saveConnection()
             password: true
             placeholderText: "password"
           }

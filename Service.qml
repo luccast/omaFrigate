@@ -41,7 +41,10 @@ Item {
   readonly property string loginBodyPath: cacheDir + "/login.json"
   readonly property string viewedBodyPath: cacheDir + "/viewed.json"
   readonly property string liveConfigPath: cacheDir + "/mpv-live.conf"
-  readonly property var pluginSettings: Model.pluginSettings(shell ? shell.shellConfig : null, Model.PLUGIN_ID)
+  // Omarchy 4.5+ exposes only barConfig (the `bar` section) to plugins; older shells passed shellConfig.
+  readonly property var pluginSettings: Model.pluginSettings(
+    shell ? (shell.shellConfig || (shell.barConfig ? { bar: shell.barConfig } : null)) : null,
+    Model.PLUGIN_ID)
   readonly property string url: pluginSettings.url
   readonly property string username: pluginSettings.username
   readonly property int refreshSeconds: pluginSettings.refreshSeconds
