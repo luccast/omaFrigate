@@ -82,10 +82,8 @@ Item {
     root.password = String(value || "")
     root.rtspPassword = String(rtspValue || "")
     passwordFile.setText(Model.serializePasswordFile(root.password, root.rtspPassword))
-    if (!root.loginPending) {
-      chmodProc.command = ["chmod", "600", passwordPath]
-      chmodProc.running = true
-    }
+    passwordChmodProc.command = ["chmod", "600", passwordPath]
+    passwordChmodProc.running = true
   }
 
   function logout() {
@@ -355,7 +353,7 @@ Item {
       if (parsed.status < 400) root.viewedQueue = []
       return
     }
-    if (parsed.status === 401 && root.username && root.apiKind !== "login" && !root.loginAttempted) {
+    if (parsed.status === 401 && root.username && root.password && root.apiKind !== "login" && !root.loginAttempted) {
       root.retryKind = root.apiKind
       startLogin()
       return
@@ -403,7 +401,7 @@ Item {
       return
     }
     if (root.apiKind === "viewed") return
-    if (root.username && root.apiKind !== "login" && !root.loginAttempted) {
+    if (root.username && root.password && root.apiKind !== "login" && !root.loginAttempted) {
       root.retryKind = root.apiKind
       startLogin()
       return
@@ -453,6 +451,8 @@ Item {
 
   function tick() {
     if (apiProc.running) return
+    // Login is waiting on its chmod; don't take apiProc or the login curl gets dropped.
+    if (root.loginPending) return
     if (root.retryKind) {
       var retry = root.retryKind
       root.retryKind = ""
@@ -466,7 +466,6 @@ Item {
       startViewed()
       return
     }
-    if (root.loginPending) return
     if (root.username && !root.token && root.password && !root.loginAttempted) {
       startLogin()
       return
@@ -484,6 +483,8 @@ Item {
 
   FileView {
     id: passwordFile
+    // Sync write: the chmod/curl that follows must see the written file.
+    blockWrites: true
     path: root.passwordPath
     watchChanges: true
     atomicWrites: true
@@ -504,6 +505,8 @@ Item {
 
   FileView {
     id: loginBodyFile
+    // Sync write: the chmod/curl that follows must see the written file.
+    blockWrites: true
     path: root.loginBodyPath
     watchChanges: false
     atomicWrites: true
@@ -512,6 +515,8 @@ Item {
 
   FileView {
     id: liveConfigFile
+    // Sync write: the chmod/curl that follows must see the written file.
+    blockWrites: true
     path: root.liveConfigPath
     watchChanges: false
     atomicWrites: true
@@ -578,6 +583,11 @@ Item {
 
   Process {
     id: ensureCacheProc
+    running: false
+  }
+
+  Process {
+    id: passwordChmodProc
     running: false
   }
 
@@ -667,7 +677,7 @@ Item {
   Component.onCompleted: {
     passwordFile.reload()
     seenFile.reload()
-    ensureCacheProc.command = ["mkdir", "-p", cacheDir + "/alerts", cacheDir + "/reviews"]
+    ensureCacheProc.command = ["sh", "-c", "mkdir -p \"$1/alerts\" \"$1/reviews\" && chmod 700 \"$1\"", "--", cacheDir]
     ensureCacheProc.running = true
     writeLiveConfig()
   }
