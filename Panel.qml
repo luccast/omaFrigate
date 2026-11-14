@@ -70,7 +70,7 @@ Panel {
     root.service.signedIn = false
     root.signedIn = false
     root.service.statusText = "Connecting…"
-    Qt.callLater(function() { if (root.service) root.service.tick() })
+    Qt.callLater(function() { if (root.service) root.service.tick(true) })
   }
 
   function saveSettings() {

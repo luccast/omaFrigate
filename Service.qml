@@ -375,6 +375,8 @@ Item {
       handleApiFailure()
       return
     }
+    // Authenticated request worked; allow re-login on the next expiry.
+    root.loginAttempted = false
     if (root.apiKind === "config") {
       var config = Model.parseConfig(parsed.body)
       root.configState = config
@@ -449,7 +451,9 @@ Item {
     remember(ids)
   }
 
-  function tick() {
+  // poll: start a routine config/reviews request. After each API exit only follow-ups run
+  // (retry, viewed, login); polling there looped back-to-back (~150 req/s).
+  function tick(poll) {
     if (apiProc.running) return
     // Login is waiting on its chmod; don't take apiProc or the login curl gets dropped.
     if (root.loginPending) return
@@ -470,6 +474,7 @@ Item {
       startLogin()
       return
     }
+    if (poll !== true) return
     if (!root.connected) {
       curlJson("config", Model.configUrl(root.url))
       return
@@ -642,7 +647,7 @@ Item {
     running: true
     repeat: true
     triggeredOnStart: true
-    onTriggered: root.tick()
+    onTriggered: root.tick(true)
   }
 
   Timer {
