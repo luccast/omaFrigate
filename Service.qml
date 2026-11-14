@@ -490,6 +490,8 @@ Item {
     printErrors: false
     onLoaded: {
       var parsed = Model.parsePasswordFile(text())
+      // A login may have failed before this async load finished; allow a retry with the real password.
+      if (parsed.password !== root.password) root.loginAttempted = false
       root.password = parsed.password
       root.rtspPassword = parsed.rtspPassword
     }
@@ -649,6 +651,9 @@ Item {
   }
 
   onPanelOpenChanged: if (!root.panelOpen && stillsProc.running) stillsProc.running = false
+
+  // mpv-live.conf is first written before login; rewrite so streams carry the current token.
+  onTokenChanged: writeLiveConfig()
 
   onUrlChanged: {
     root.token = ""
