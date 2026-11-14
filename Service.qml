@@ -355,6 +355,14 @@ Item {
       if (parsed.status < 400) root.viewedQueue = []
       return
     }
+    if (parsed.status >= 300 && parsed.status < 400) {
+      // curl doesn't follow redirects; usually http:// on an https-only host.
+      root.connected = false
+      root.signedIn = false
+      root.needsLogin = true
+      root.statusText = root.url.indexOf("http://") === 0 ? "Redirected – try https://" : "Redirected – check URL"
+      return
+    }
     if (parsed.status === 401 && root.username && root.password && root.apiKind !== "login" && !root.loginAttempted) {
       root.retryKind = root.apiKind
       startLogin()

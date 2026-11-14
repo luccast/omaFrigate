@@ -14,7 +14,9 @@ function curlBounds(maxBytes, insecureTls) {
 
 function normalizeUrl(url) {
   var value = String(url || "").replace(/^\s+|\s+$/g, "").replace(/\/+$/, "")
-  return value || DEFAULT_URL
+  if (!value) return DEFAULT_URL
+  // No scheme: curl would guess http anyway, mpv would treat it as a file path.
+  return /^[a-z][a-z0-9+.-]*:\/\//i.test(value) ? value : "http://" + value
 }
 
 function pluginSettings(config, id) {
@@ -418,6 +420,9 @@ if (typeof Qt === "undefined") {
   assert(IMAGE_MAX_BYTES === 8388608, "image max bytes")
   assert(curlBounds(API_MAX_BYTES).join(" ") === "--max-time 8 --max-filesize 2097152", "curl json bounds")
   assert(curlBounds(IMAGE_MAX_BYTES).join(" ") === "--max-time 8 --max-filesize 8388608", "curl image bounds")
+  assert(normalizeUrl(" frigate.example.com/ ") === "http://frigate.example.com", "url adds scheme")
+  assert(normalizeUrl("https://nvr:8971/") === "https://nvr:8971", "url keeps https")
+  assert(normalizeUrl("") === DEFAULT_URL, "url default")
   assert(curlBounds(0).join(" ") === "--max-time 8 --max-filesize 2097152", "curl bounds fallback")
   assert(curlBounds(API_MAX_BYTES, true).join(" ") === "--max-time 8 --max-filesize 2097152 -k", "curl insecure tls")
   assert(pluginSettings({}).insecureTls === false, "insecureTls default")
