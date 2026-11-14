@@ -4,10 +4,12 @@ var SEEN_LIMIT = 200
 var API_MAX_BYTES = 2 * 1024 * 1024
 var IMAGE_MAX_BYTES = 8 * 1024 * 1024
 
-function curlBounds(maxBytes) {
+function curlBounds(maxBytes, insecureTls) {
   var n = parseInt(maxBytes, 10)
   if (!(n > 0)) n = API_MAX_BYTES
-  return ["--max-time", "8", "--max-filesize", String(n)]
+  var args = ["--max-time", "8", "--max-filesize", String(n)]
+  if (insecureTls === true) args.push("-k")
+  return args
 }
 
 function normalizeUrl(url) {
@@ -17,7 +19,7 @@ function normalizeUrl(url) {
 
 function pluginSettings(config, id) {
   var key = String(id || PLUGIN_ID)
-  var empty = { url: DEFAULT_URL, username: "", refreshSeconds: 2, popupOnAlert: false, rtspUsername: "", hqStream: false, aspectRatio: "16:9" }
+  var empty = { url: DEFAULT_URL, username: "", refreshSeconds: 2, popupOnAlert: false, rtspUsername: "", hqStream: false, aspectRatio: "16:9", insecureTls: false }
   if (!config || typeof config !== "object") return empty
 
   function fromEntry(entry) {
@@ -30,7 +32,8 @@ function pluginSettings(config, id) {
       popupOnAlert: entry.popupOnAlert === true,
       rtspUsername: String(entry.rtspUsername || ""),
       hqStream: entry.hqStream === true,
-      aspectRatio: String(entry.aspectRatio || "16:9") === "4:3" ? "4:3" : "16:9"
+      aspectRatio: String(entry.aspectRatio || "16:9") === "4:3" ? "4:3" : "16:9",
+      insecureTls: entry.insecureTls === true
     }
   }
 
@@ -416,6 +419,8 @@ if (typeof Qt === "undefined") {
   assert(curlBounds(API_MAX_BYTES).join(" ") === "--max-time 8 --max-filesize 2097152", "curl json bounds")
   assert(curlBounds(IMAGE_MAX_BYTES).join(" ") === "--max-time 8 --max-filesize 8388608", "curl image bounds")
   assert(curlBounds(0).join(" ") === "--max-time 8 --max-filesize 2097152", "curl bounds fallback")
+  assert(curlBounds(API_MAX_BYTES, true).join(" ") === "--max-time 8 --max-filesize 2097152 -k", "curl insecure tls")
+  assert(pluginSettings({}).insecureTls === false, "insecureTls default")
   assert(normalizeUrl(" http://cam:5000/ ") === "http://cam:5000", "normalizeUrl")
   assert(pluginSettings({
     bar: { layout: { right: [{ id: PLUGIN_ID, url: "http://nvr:8971", username: "admin" }] } }

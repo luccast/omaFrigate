@@ -52,6 +52,7 @@ Item {
   readonly property string rtspUsername: pluginSettings.rtspUsername
   readonly property bool hqStream: pluginSettings.hqStream === true
   readonly property string aspectRatio: pluginSettings.aspectRatio
+  readonly property bool insecureTls: pluginSettings.insecureTls === true
 
   function cachePath(subdir, id, ext) {
     return cacheDir + (subdir ? "/" + subdir : "") + "/" +
@@ -71,7 +72,8 @@ Item {
       popupOnAlert: root.popupOnAlert,
       rtspUsername: root.rtspUsername,
       hqStream: root.hqStream,
-      aspectRatio: root.aspectRatio
+      aspectRatio: root.aspectRatio,
+      insecureTls: root.insecureTls
     }
     for (var key in values) entry[key] = values[key]
     if (root.shell && typeof root.shell.updateEntryInline === "function")
@@ -228,7 +230,7 @@ Item {
     if (apiProc.running || !root.viewedQueue.length || !root.url) return false
     viewedBodyFile.setText(Model.viewedBody(root.viewedQueue))
     root.apiKind = "viewed"
-    var cmd = ["curl", "-sS", "-w", "\n%{http_code}"].concat(Model.curlBounds(Model.API_MAX_BYTES), [
+    var cmd = ["curl", "-sS", "-w", "\n%{http_code}"].concat(Model.curlBounds(Model.API_MAX_BYTES, root.insecureTls), [
       "-X", "POST", "-H", "Content-Type: application/json",
       "--data-binary", "@" + viewedBodyPath
     ])
@@ -242,7 +244,7 @@ Item {
   function curlJson(kind, url) {
     if (apiProc.running) return false
     root.apiKind = kind
-    var cmd = ["curl", "-sS", "-w", "\n%{http_code}"].concat(Model.curlBounds(Model.API_MAX_BYTES))
+    var cmd = ["curl", "-sS", "-w", "\n%{http_code}"].concat(Model.curlBounds(Model.API_MAX_BYTES, root.insecureTls))
     if (root.token) cmd.push("-H", "Authorization: Bearer " + root.token)
     if (kind === "login")
       cmd.push("-i", "-X", "POST", "-H", "Content-Type: application/json", "--data-binary", "@" + loginBodyPath)
@@ -290,7 +292,7 @@ Item {
     ensureCacheProc.command = ["mkdir", "-p", cacheDir + "/alerts"]
     ensureCacheProc.running = true
     var cmd = ["curl", "-sS", "-o", alertPath(review.id), "-w", "\n%{http_code}"].concat(
-      Model.curlBounds(Model.IMAGE_MAX_BYTES))
+      Model.curlBounds(Model.IMAGE_MAX_BYTES, root.insecureTls))
     if (root.token) cmd.push("-H", "Authorization: Bearer " + root.token)
     cmd.push(Model.snapshotUrl(root.url, eventId))
     apiProc.command = cmd
@@ -300,7 +302,7 @@ Item {
 
   function startStills() {
     if (stillsProc.running) return false
-    var cmd = ["curl", "-sS"].concat(Model.curlBounds(Model.IMAGE_MAX_BYTES))
+    var cmd = ["curl", "-sS"].concat(Model.curlBounds(Model.IMAGE_MAX_BYTES, root.insecureTls))
     if (root.token) cmd.push("-H", "Authorization: Bearer " + root.token)
     var added = 0
     if (root.panelOpen) {

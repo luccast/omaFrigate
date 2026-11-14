@@ -35,7 +35,9 @@ Click the bar icon. The first time, you get a connection form.
 | Frigate | URL | Username / password |
 | --- | --- | --- |
 | Same machine, unauthenticated API | `http://127.0.0.1:5000` | Leave blank |
-| Authenticated UI | `http://HOST:8971` | Frigate user |
+| Authenticated UI | `https://HOST:8971` | Frigate user |
+
+Frigate's default `:8971` certificate is self-signed, so curl rejects it. Turn on **Allow self-signed TLS** in the connection form to skip certificate checks (only for hosts you trust). mpv doesn't verify certificates by default, so live views need no change.
 
 The password is stored only in `~/.local/state/omarchy/frigate.json` (`0600`). After a successful login, the form hides. Use the header logout button to sign out and clear credentials.
 

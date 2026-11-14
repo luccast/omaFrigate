@@ -558,6 +558,17 @@ Panel {
             placeholderText: "password"
           }
 
+          Toggle {
+            width: parent.width
+            label: "Allow self-signed TLS"
+            description: "Skip certificate checks (Frigate's default :8971 cert)"
+            checked: !!(root.service && root.service.insecureTls)
+            foreground: root.contentForeground
+            fontFamily: root.contentFontFamily
+            onClicked: if (root.service)
+              root.service.persistSettings({ insecureTls: !root.service.insecureTls })
+          }
+
           Button {
             text: "Save"
             foreground: root.contentForeground
